@@ -1,0 +1,4 @@
+horizon_minutes,city,exact_target_rows_all_cities,training_rows_primary_city,has_training_file,note
+15,hanoi,2420,1690,True,enough_rows
+60,hanoi,2285,910,True,enough_rows
+240,hanoi,1345,560,False,240m intentionally not exported for baseline training

@@ -1,0 +1,193 @@
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_INIT_LIMIT: 5
+    ports:
+      - "2181:2181"
+    networks:
+      - traffic-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_INTERNAL://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    networks:
+      - traffic-net
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.5.0
+    depends_on:
+      - kafka
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    networks:
+      - traffic-net
+
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: traffic_analytics
+      POSTGRES_INITDB_ARGS: "-c shared_preload_libraries=pg_stat_statements"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - traffic-net
+
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - traffic-net
+
+  neo4j:
+    image: neo4j:5.13
+    ports:
+      - "7687:7687"
+      - "7474:7474"
+    environment:
+      NEO4J_AUTH: neo4j/password
+      NEO4J_PLUGINS: '["apoc"]'
+    volumes:
+      - neo4j_data:/data
+    networks:
+      - traffic-net
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - traffic-net
+
+  spark-master:
+    image: docker.io/library/python:3.11-slim
+    command: sleep 1000000
+    ports:
+      - "8082:8080"
+      - "7077:7077"
+      - "4040:4040"
+    volumes:
+      - ./processing:/opt/spark-apps/processing
+    networks:
+      - traffic-net
+
+  spark-worker:
+    image: docker.io/library/python:3.11-slim
+    command: sleep 1000000
+    ports:
+      - "8083:8081"
+    volumes:
+      - ./processing:/opt/spark-apps/processing
+    networks:
+      - traffic-net
+
+  hive-metastore:
+    image: apache/hive:4.0.0
+    ports:
+      - "9083:9083"
+    depends_on:
+      - postgres
+    environment:
+      SERVICE_NAME: metastore
+      DB_DRIVER: postgres
+      DB_TYPE: postgres
+      POSTGRES_DB: traffic_analytics
+      POSTGRES_HOSTNAME: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    networks:
+      - traffic-net
+
+  trino:
+    image: trinodb/trino:435
+    ports:
+      - "8888:8080"
+    depends_on:
+      - hive-metastore
+      - postgres
+      - minio
+    volumes:
+      - ./infra/trino/catalog:/etc/trino/catalog
+    networks:
+      - traffic-net
+
+  airflow:
+    image: apache/airflow:2.8.0
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql://postgres:postgres@postgres:5432/traffic_analytics
+      AIRFLOW__CORE__FERNET_KEY: d60OMRend3GCMDoUTJ0ANbefDYAng8NVDy9h5cF1biU=
+    volumes:
+      - ./airflow:/opt/airflow
+      - ./processing:/opt/airflow/processing
+      - ./infra:/opt/airflow/infra
+    command: >
+      bash -c "
+      airflow db migrate &&
+      airflow users create --username admin --password admin --firstname Admin --lastname Admin --role Admin --email admin@example.com 2>/dev/null || true &&
+      airflow webserver &
+      airflow scheduler
+      "
+    networks:
+      - traffic-net
+
+  local-pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.pipeline
+    profiles:
+      - pipeline
+    volumes:
+      - ./raw:/app/raw:ro
+      - ./data:/app/data
+    networks:
+      - traffic-net
+
+networks:
+  traffic-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  neo4j_data:
+  minio_data:

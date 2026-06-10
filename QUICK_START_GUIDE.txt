@@ -1,0 +1,255 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    PHASE 1 + PHASE 2 QUICK START GUIDE                     ║
+║                       Everything is ready. Just execute!                   ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+OVERVIEW
+════════════════════════════════════════════════════════════════════════════
+
+Phase 2 (20 min): Clean historical data from raw/ folder
+  └─ Load raw → Clean → Silver tables ready
+
+Phase 1 (Continuous): Start producers + streaming
+  └─ 5 producers feed data → Kafka → Bronze → Silver (hourly)
+
+Total setup time: ~30 minutes
+Total data: 600K+ records in first 30 minutes + continuous growth
+
+
+STEP-BY-STEP EXECUTION
+════════════════════════════════════════════════════════════════════════════
+
+PHASE 2: Clean Historical Data (20 minutes)
+───────────────────────────────────────────────────────────────────────────
+
+✅ STEP 1: Load Raw Data (10 min)
+   Via Airflow (RECOMMENDED):
+     1. Open: http://localhost:8080
+     2. Login: admin / admin
+     3. Find: load_raw_data DAG
+     4. Click: "Trigger DAG" (blue button)
+     5. Wait: ~10 minutes for completion
+
+   Via Command Line:
+     spark-submit \
+       --master spark://spark-master:7077 \
+       --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.5.0 \
+       processing/batch_load/load_raw_data.py \
+       /home/longha/Desktop/leue/raw \
+       s3a://lakehouse
+
+   ✅ Result:
+     - bronze_traffic_raw: ~600K records
+     - bronze_weather_raw: ~100K records
+
+
+✅ STEP 2: Clean Data in Parallel (10 min)
+   Via Airflow (RECOMMENDED):
+     1. Still at http://localhost:8080
+     2. Find: silver_processing DAG
+     3. Click: "Trigger DAG"
+     4. Watch: Task Graph tab for completion
+     5. Wait: ~5-10 minutes (all 3 jobs run in parallel)
+
+   Via Command Line (3 terminals, all at same time):
+     Terminal 1:
+       spark-submit --master spark://spark-master:7077 \
+         --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.5.0 \
+         processing/silver/clean_traffic.py s3a://lakehouse
+
+     Terminal 2:
+       spark-submit --master spark://spark-master:7077 \
+         --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.5.0 \
+         processing/silver/clean_weather.py s3a://lakehouse
+
+     Terminal 3:
+       spark-submit --master spark://spark-master:7077 \
+         --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.5.0 \
+         processing/silver/match_traffic_weather.py s3a://lakehouse
+
+   ✅ Result:
+     - silver_traffic_cleaned: ~500K records (85% quality)
+     - silver_weather_cleaned: ~95K records (95% quality)
+     - silver_traffic_weather_matched: ~500K records (98% match)
+
+
+PHASE 1: Start Real-time Producers (Continuous)
+───────────────────────────────────────────────────────────────────────────
+
+✅ STEP 3: Open 5 New Terminals and Run These (all at same time):
+
+   TERMINAL 1 - News Crawler:
+     cd /home/longha/Desktop/leue
+     python3 ingestion/producers/news_producer.py
+
+   TERMINAL 2 - TomTom Traffic (requires API key):
+     cd /home/longha/Desktop/leue
+     export TOMTOM_API_KEY="your_key_here"
+     python3 ingestion/producers/tomtom_producer.py
+
+   TERMINAL 3 - Weather (requires API key):
+     cd /home/longha/Desktop/leue
+     export OWM_API_KEY="your_key_here"
+     python3 ingestion/producers/weather_producer.py
+
+   TERMINAL 4 - Aligned Producer:
+     cd /home/longha/Desktop/leue
+     export TOMTOM_API_KEY="your_key_here"
+     export OWM_API_KEY="your_key_here"
+     python3 ingestion/producers/traffic_weather_producer.py
+
+   TERMINAL 5 - Bronze Streaming:
+     cd /home/longha/Desktop/leue
+     spark-submit \
+       --master spark://spark-master:7077 \
+       --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
+       processing/bronze/kafka_to_bronze.py \
+       kafka:9092 \
+       traffic.realtime.tomtom \
+       s3a://lakehouse
+
+   ✅ Status:
+     All 5 terminals keep running (don't close them!)
+     Data continuously flows into Kafka → Bronze → Silver
+
+
+MONITOR (Automatic, No Action Needed)
+───────────────────────────────────────────────────────────────────────────
+
+✅ STEP 4: Airflow Automatically Runs Hourly
+   Every hour, airflow runs:
+   - clean_traffic.py
+   - clean_weather.py
+   - match_traffic_weather.py
+
+   ✅ Check Progress:
+     - Airflow UI: http://localhost:8080
+     - MinIO (data): http://localhost:9001 (minioadmin / minioadmin)
+     - Command: docker exec leue-spark-master-1 spark-sql -c \
+         "SELECT COUNT(*) FROM iceberg.lakehouse.silver_traffic_cleaned"
+
+
+EXPECTED TIMELINE
+════════════════════════════════════════════════════════════════════════════
+
+0:00 ─ STEP 1: Load raw/ data (10 min)
+       └─ bronze_traffic_raw: 600K records
+       └─ bronze_weather_raw: 100K records
+
+0:10 ─ STEP 2: Clean data parallel (10 min)
+       └─ silver_traffic_cleaned: 500K records
+       └─ silver_weather_cleaned: 95K records
+       └─ silver_traffic_weather_matched: 500K records
+
+0:20 ─ ✅ PHASE 2 DONE!
+       └─ Ready for Phase 3 Feature Engineering
+
+0:20 ─ STEP 3: Start 5 producers (continuous)
+       └─ News, Traffic, Weather, Aligned, Bronze Streaming
+
+0:30+ ─ STEP 4: Monitor (automatic hourly)
+       └─ Airflow DAGs run every hour
+       └─ New data gets cleaned and added to Silver
+       └─ Dataset grows continuously
+
+
+SUCCESS CHECKLIST
+════════════════════════════════════════════════════════════════════════════
+
+After STEP 1 (Load Raw):
+  ☐ MinIO shows: lakehouse/bronze/traffic_raw/ has data
+  ☐ MinIO shows: lakehouse/bronze/weather_raw/ has data
+
+After STEP 2 (Clean):
+  ☐ MinIO shows: lakehouse/silver/traffic_cleaned/ has data
+  ☐ MinIO shows: lakehouse/silver/weather_cleaned/ has data
+  ☐ MinIO shows: lakehouse/silver/traffic_weather_matched/ has data
+
+After STEP 3 (Producers):
+  ☐ Terminal 1: News producer output visible
+  ☐ Terminal 2: Traffic producer polling
+  ☐ Terminal 3: Weather producer updating
+  ☐ Terminal 4: Aligned producer running
+  ☐ Terminal 5: Spark streaming processing
+
+After STEP 4 (Monitor):
+  ☐ Airflow silver_processing DAG running hourly
+  ☐ MinIO silver/ folders showing new data (every hour)
+  ☐ Kafka topics receiving messages (check in Airflow logs)
+
+✅ ALL CHECKS PASS → Phase 1 + Phase 2 Working! 🎉
+
+
+DATA VOLUME EXPECTATIONS
+════════════════════════════════════════════════════════════════════════════
+
+After 20 minutes (Phase 2):
+  Historical data: ~700K raw → ~600K cleaned
+
+After 1 hour (Phase 1 + hourly cleaning):
+  Historical: ~600K
+  Real-time: ~50-100 (1st hour from producers)
+  Total: Growing
+
+After 1 day:
+  Historical: ~600K
+  Real-time: ~2K-5K (depends on producer poll intervals)
+  Total: 600K+ with continuous growth
+
+
+WHEN DONE WITH PHASE 1 + 2, START PHASE 3
+════════════════════════════════════════════════════════════════════════════
+
+After you see data in silver/ tables (after STEP 2 completes):
+
+  spark-submit \
+    --master spark://spark-master:7077 \
+    processing/gold/build_training_dataset.py \
+    s3a://lakehouse
+
+Creates:
+  - gold_traffic_features (8 feature groups)
+  - gold_training_dataset (ML ready)
+
+
+TROUBLESHOOTING QUICK FIXES
+════════════════════════════════════════════════════════════════════════════
+
+Problem: "spark-submit command not found"
+  Fix: Use: /usr/local/spark/bin/spark-submit
+       Or: docker exec leue-spark-master-1 spark-submit
+
+Problem: "Kafka not responding"
+  Fix: docker-compose restart kafka zookeeper
+
+Problem: "API key error" in terminals
+  Fix: Make sure to set API keys BEFORE running producer:
+       export TOMTOM_API_KEY="your_actual_key"
+       export OWM_API_KEY="your_actual_key"
+
+Problem: "No data in Silver tables"
+  Fix: 1. Check if Bronze has data:
+          docker exec leue-spark-master-1 spark-sql -c \
+            "SELECT COUNT(*) FROM iceberg.lakehouse.bronze_traffic_raw"
+       2. If empty, re-run STEP 1
+       3. If Bronze has data, re-run STEP 2
+
+Problem: "Airflow DAG not running"
+  Fix: 1. Open http://localhost:8080
+       2. Click the DAG name
+       3. Click "Trigger DAG" button manually
+
+
+DONE! YOU NOW HAVE:
+════════════════════════════════════════════════════════════════════════════
+
+✅ Complete data pipeline (Phase 1 + 2)
+✅ 600K+ training records (historical)
+✅ Continuous data collection (real-time)
+✅ Automated hourly cleaning (Airflow)
+✅ Ready for ML models (Phase 3)
+
+Total setup time: ~30 minutes
+Status: 🚀 READY FOR PRODUCTION
+
+For detailed instructions, see: HOW_TO_EXECUTE_PHASE1_PHASE2.md

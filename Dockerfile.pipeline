@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir pandas numpy pyarrow
+
+COPY scripts/build_local_gold_dataset.py /app/scripts/build_local_gold_dataset.py
+COPY scripts/build_news_bronze.py /app/scripts/build_news_bronze.py
+COPY scripts/build_news_event_features.py /app/scripts/build_news_event_features.py
+COPY scripts/run_local_gold_pipeline.py /app/scripts/run_local_gold_pipeline.py
+
+ENTRYPOINT ["python", "scripts/run_local_gold_pipeline.py"]

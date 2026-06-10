@@ -1,0 +1,114 @@
+{
+  "type": "record",
+  "name": "EventNews",
+  "namespace": "com.cognitive.traffic.events",
+  "doc": "News event extracted from RSS/crawlers for traffic impact analysis",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string",
+      "doc": "Unique event identifier (ev_YYYYMMDDHH_hash)"
+    },
+    {
+      "name": "source",
+      "type": "string",
+      "doc": "News source name (e.g., vnexpress_giaothong, baogiaothong)"
+    },
+    {
+      "name": "source_url",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Original article URL"
+    },
+    {
+      "name": "crawled_at",
+      "type": "long",
+      "logicalType": "timestamp-millis",
+      "doc": "When the article was crawled (UTC)"
+    },
+    {
+      "name": "published_at",
+      "type": ["null", "long"],
+      "logicalType": "timestamp-millis",
+      "default": null,
+      "doc": "When the article was published (UTC)"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "doc": "Article headline"
+    },
+    {
+      "name": "content",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Full article content (may be truncated)"
+    },
+    {
+      "name": "event_type",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Classified event type: accident, flood, road_work, event, weather, other"
+    },
+    {
+      "name": "severity",
+      "type": ["null", "int"],
+      "default": null,
+      "doc": "Severity score 0-3; higher = more impact on traffic"
+    },
+    {
+      "name": "location_entity",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Extracted location string (e.g., 'cầu Nhật Tân, Hà Nội')"
+    },
+    {
+      "name": "lat",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "Latitude coordinate"
+    },
+    {
+      "name": "lon",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "Longitude coordinate"
+    },
+    {
+      "name": "snapped_segment_id",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "OSM segment ID or TomTom segment_id after snapping"
+    },
+    {
+      "name": "snap_distance_m",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "Distance in meters from location to snapped segment"
+    },
+    {
+      "name": "event_confidence",
+      "type": ["null", "double"],
+      "default": null,
+      "doc": "Confidence score 0.0-1.0 based on geocoding quality and mirrored sources"
+    },
+    {
+      "name": "city",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "City name (Ha_Noi, Ho_Chi_Minh, etc)"
+    },
+    {
+      "name": "mirrored_sources",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "JSON array of other sources reporting same event"
+    },
+    {
+      "name": "raw_html_path",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Path to stored raw HTML in S3 (e.g., s3://warehouse/bronze/events_raw/...)"
+    }
+  ]
+}

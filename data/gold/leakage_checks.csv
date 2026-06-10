@@ -1,0 +1,20 @@
+check,status,detail
+speed_lag_1,pass,lag uses exact historical bucket t-5m
+speed_lag_2,pass,lag uses exact historical bucket t-10m
+speed_lag_3,pass,lag uses exact historical bucket t-15m
+speed_lag_4,pass,lag uses exact historical bucket t-20m
+speed_lag_5,pass,lag uses exact historical bucket t-25m
+speed_lag_6,pass,lag uses exact historical bucket t-30m
+speed_lag_7,pass,lag uses exact historical bucket t-35m
+speed_lag_8,pass,lag uses exact historical bucket t-40m
+speed_lag_9,pass,lag uses exact historical bucket t-45m
+speed_lag_10,pass,lag uses exact historical bucket t-50m
+speed_lag_11,pass,lag uses exact historical bucket t-55m
+speed_lag_12,pass,lag uses exact historical bucket t-60m
+rolling_features,pass,rolling features are computed from exact speed_lag_* columns and exclude currentSpeed
+future_speed_15m,pass,target built by exact self-join on time_bucket + 15m; valid rows=2420
+future_speed_60m,pass,target built by exact self-join on time_bucket + 60m; valid rows=2285
+future_speed_240m,pass,target built by exact self-join on time_bucket + 240m; valid rows=1345
+weather_join,pass,weather merged with backward asof join; no future weather rows are used
+global_baseline_features,pass,p15/p50/p85 baseline columns stay in dashboard features but are dropped from model training files
+bucket_interval,pass,pipeline bucket interval is 0 days 00:05:00

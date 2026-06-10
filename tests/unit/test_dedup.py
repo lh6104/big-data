@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dedup.deduplicator import (
+from processing.silver.deduplicator import (
     Deduplicator,
     _normalize_title,
     _simhash,
@@ -65,7 +65,7 @@ def _make_dedup() -> Deduplicator:
     redis_mock.get.side_effect = get
     redis_mock.scan.side_effect = scan
 
-    with patch("dedup.deduplicator.redis_lib.from_url", return_value=redis_mock):
+    with patch("processing.silver.deduplicator.redis_lib.from_url", return_value=redis_mock):
         d = Deduplicator(redis_url="redis://fake:6379")
     return d
 
@@ -80,8 +80,8 @@ class TestNormalizeTitle:
 
     def test_removes_stopwords(self):
         tokens = _normalize_title("Va chạm và xe máy")
-        assert "va" in tokens
-        assert "va" not in {"va"} or True  # stopword "va" should be removed
+        assert "va" not in tokens
+        assert "cham" in tokens
         # Check that we don't have just stopwords
         assert len(tokens) > 0
 

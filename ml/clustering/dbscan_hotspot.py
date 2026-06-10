@@ -6,13 +6,16 @@ on (lat, lon, congestion_ratio) features. Runs every 15 minutes to detect curren
 
 import logging
 import sys
+from pathlib import Path
 import pandas as pd
 import numpy as np
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 from datetime import datetime
 
-sys.path.insert(0, "/home/longha/Desktop/leue")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 from processing.utils.spark_session import get_spark_session
 from processing.utils.iceberg_utils import write_iceberg_table
 

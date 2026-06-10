@@ -33,7 +33,7 @@ def fetch_tomtom_stats():
         raise ValueError("TOMTOM_API_KEY not set")
     
     print(f"Fetching TomTom Stats for week of {datetime.now()}")
-    print(f"Using API key: {api_key[:10]}...")
+    print("Using TOMTOM_API_KEY from environment")
     
     # TODO: Implement actual TomTom Stats API call
     # This would submit an async job and poll for results

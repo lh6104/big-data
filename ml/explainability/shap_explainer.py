@@ -6,6 +6,8 @@ contributed most to each prediction (model interpretability).
 
 import logging
 import sys
+import os
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import json
@@ -13,7 +15,9 @@ import lightgbm as lgb
 import shap
 from datetime import datetime
 
-sys.path.insert(0, "/home/longha/Desktop/leue")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 from processing.utils.spark_session import get_spark_session
 from processing.utils.iceberg_utils import write_iceberg_table
 
@@ -41,7 +45,8 @@ class SHAPExplainer:
         # For now, assume model is in models/ directory
         try:
             import pickle
-            model_path = f"/home/longha/Desktop/leue/models/lightgbm_{self.horizon}m.pkl"
+            model_dir = Path(os.getenv("MODEL_DIR", PROJECT_ROOT / "models" / "artifacts"))
+            model_path = model_dir / f"lightgbm_{self.horizon}m.pkl"
             with open(model_path, "rb") as f:
                 model = pickle.load(f)
             logger.info(f"✓ Loaded model from {model_path}")

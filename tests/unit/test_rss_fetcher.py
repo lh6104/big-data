@@ -7,9 +7,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import textwrap
 from unittest.mock import patch, MagicMock
 
+import feedparser
 import pytest
 
-from crawler.rss_fetcher import fetch_rss, _is_traffic_related, _normalize_url
+from ingestion.producers.rss_fetcher import fetch_rss, _is_traffic_related, _normalize_url
+
+ORIGINAL_FEEDPARSER_PARSE = feedparser.parse
 
 
 # ── Fixture RSS XML ────────────────────────────────────────────────────────────
@@ -65,8 +68,7 @@ class TestIsTrafficRelated:
 
 class TestFetchRss:
     def _mock_feedparser(self, xml_text: str, status: int = 200, etag: str = "abc"):
-        import feedparser
-        parsed = feedparser.parse(xml_text)
+        parsed = ORIGINAL_FEEDPARSER_PARSE(xml_text)
         parsed.status = status
         parsed.etag = etag
         parsed.modified = None
@@ -75,7 +77,7 @@ class TestFetchRss:
     def test_returns_traffic_entries_only(self):
         import feedparser
         xml = RSS_FIXTURE
-        with patch("crawler.rss_fetcher.feedparser.parse") as mock_parse:
+        with patch("ingestion.producers.rss_fetcher.feedparser.parse") as mock_parse:
             mock_parse.return_value = self._mock_feedparser(xml)
             entries, _, _ = fetch_rss("http://fake.rss")
         # "Top 10 món ăn" bị lọc ra
@@ -85,7 +87,7 @@ class TestFetchRss:
         assert all("ẩm thực" not in t.lower() for t in titles)
 
     def test_304_returns_empty(self):
-        with patch("crawler.rss_fetcher.feedparser.parse") as mock_parse:
+        with patch("ingestion.producers.rss_fetcher.feedparser.parse") as mock_parse:
             fp = MagicMock()
             fp.status = 304
             fp.etag = "same_etag"
@@ -96,14 +98,14 @@ class TestFetchRss:
 
     def test_external_id_is_sha1_hex(self):
         import re
-        with patch("crawler.rss_fetcher.feedparser.parse") as mock_parse:
+        with patch("ingestion.producers.rss_fetcher.feedparser.parse") as mock_parse:
             mock_parse.return_value = self._mock_feedparser(RSS_FIXTURE)
             entries, _, _ = fetch_rss("http://fake.rss")
         for e in entries:
             assert re.fullmatch(r"[0-9a-f]{40}", e["external_id"])
 
     def test_no_filter_returns_all(self):
-        with patch("crawler.rss_fetcher.feedparser.parse") as mock_parse:
+        with patch("ingestion.producers.rss_fetcher.feedparser.parse") as mock_parse:
             mock_parse.return_value = self._mock_feedparser(RSS_FIXTURE)
             entries, _, _ = fetch_rss("http://fake.rss", filter_keywords=False)
         assert len(entries) == 3

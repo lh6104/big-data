@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # Thêm project root vào sys.path khi chạy trong Airflow worker
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
@@ -57,9 +57,9 @@ def _fetch_source(source: dict, **ctx) -> list[dict]:
     """Fetch bài từ một source (rss hoặc html)."""
     import asyncio
 
-    from crawler.rss_fetcher import fetch_rss
-    from crawler.html_scraper import fetch_html, scrape_article_links
-    from crawler.article_parser import extract_content
+    from ingestion.producers.rss_fetcher import fetch_rss
+    from ingestion.producers.html_scraper import fetch_html, scrape_article_links
+    from ingestion.producers.article_parser import extract_content
 
     source_name = source["name"]
     source_type = source["type"]
@@ -116,8 +116,8 @@ def _fetch_source(source: dict, **ctx) -> list[dict]:
 def _parse_articles(source_name: str, **ctx) -> list[dict]:
     """Lấy nội dung đầy đủ cho bài RSS (chỉ có summary)."""
     import asyncio
-    from crawler.html_scraper import fetch_html
-    from crawler.article_parser import extract_content
+    from ingestion.producers.html_scraper import fetch_html
+    from ingestion.producers.article_parser import extract_content
 
     articles: list[dict] = ctx["ti"].xcom_pull(key=f"articles_{source_name}")
     if not articles:
@@ -137,7 +137,7 @@ def _parse_articles(source_name: str, **ctx) -> list[dict]:
 
 
 def _dedup(source_name: str, **ctx) -> list[dict]:
-    from dedup.deduplicator import Deduplicator
+    from processing.silver.deduplicator import Deduplicator
 
     articles: list[dict] = ctx["ti"].xcom_pull(key=f"parsed_{source_name}") or []
     dedup = Deduplicator()
@@ -163,10 +163,10 @@ def _dedup(source_name: str, **ctx) -> list[dict]:
 
 
 def _nlp_extract(source_name: str, **ctx) -> list[dict]:
-    from nlp.preprocessor import preprocess
-    from nlp.classifier import classify
-    from nlp.ner import primary_location, detect_city
-    from nlp.severity import score_severity
+    from processing.silver.preprocessor import preprocess
+    from processing.silver.classifier import classify
+    from processing.silver.ner import detect_city, extract_locations
+    from processing.silver.severity import score_severity
     from models.event import City
 
     articles: list[dict] = ctx["ti"].xcom_pull(key=f"unique_{source_name}") or []
@@ -175,7 +175,8 @@ def _nlp_extract(source_name: str, **ctx) -> list[dict]:
     for art in articles:
         text = preprocess(f"{art['title']} {art['summary']} {art['content']}")
         event_type = classify(text)
-        location_entity = primary_location(text, city_hint=art.get("city_hint"))
+        locations = extract_locations(text, city_hint=art.get("city_hint"))
+        location_entity = locations[0] if locations else ""
         severity = score_severity(text)
 
         detected_city = detect_city(text) or art.get("city_hint", "")
@@ -199,7 +200,7 @@ def _nlp_extract(source_name: str, **ctx) -> list[dict]:
 
 
 def _geocode(source_name: str, **ctx) -> list[dict]:
-    from geocoder.geocoder import geocode_with_confidence
+    from processing.silver.geocoder import geocode_with_confidence
 
     articles: list[dict] = ctx["ti"].xcom_pull(key=f"nlp_{source_name}") or []
     enriched = []
@@ -230,14 +231,15 @@ def _produce_to_kafka(source_name: str, **ctx) -> None:
     import uuid
     from datetime import datetime, timezone
 
-    from kafka.producer import EventProducer
+    from ingestion.kafka.producer import KafkaProducer
     from models.event import NewsEvent, EventType, City, GeocodeStatus
 
     articles: list[dict] = ctx["ti"].xcom_pull(key=f"geo_{source_name}") or []
     if not articles:
         return
 
-    with EventProducer() as producer:
+    producer = KafkaProducer()
+    try:
         for art in articles:
             try:
                 published_at = None
@@ -265,6 +267,8 @@ def _produce_to_kafka(source_name: str, **ctx) -> None:
                 producer.send(event.to_kafka_dict())
             except Exception as exc:
                 logger.error("Failed to produce event %s: %s", art.get("external_id"), exc)
+    finally:
+        producer.close()
 
     logger.info("Produced %d events from %s to Kafka", len(articles), source_name)
 

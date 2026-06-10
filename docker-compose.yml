@@ -46,8 +46,8 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: traffic_analytics
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-traffic_analytics}
       POSTGRES_INITDB_ARGS: "-c shared_preload_libraries=pg_stat_statements"
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -70,7 +70,7 @@ services:
       - "7687:7687"
       - "7474:7474"
     environment:
-      NEO4J_AUTH: neo4j/password
+      NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/password}
       NEO4J_PLUGINS: '["apoc"]'
     volumes:
       - neo4j_data:/data
@@ -83,8 +83,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
@@ -154,19 +154,81 @@ services:
       AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql://postgres:postgres@postgres:5432/traffic_analytics
-      AIRFLOW__CORE__FERNET_KEY: d60OMRend3GCMDoUTJ0ANbefDYAng8NVDy9h5cF1biU=
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-traffic_analytics}
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-d60OMRend3GCMDoUTJ0ANbefDYAng8NVDy9h5cF1biU=}
+      TOMTOM_API_KEY: ${TOMTOM_API_KEY:-}
+      OWM_API_KEY: ${OWM_API_KEY:-}
     volumes:
       - ./airflow:/opt/airflow
       - ./processing:/opt/airflow/processing
+      - ./ingestion:/opt/airflow/ingestion
+      - ./models:/opt/airflow/models
       - ./infra:/opt/airflow/infra
+      - ./raw:/opt/airflow/raw
+      - ./sources.yaml:/opt/airflow/sources.yaml:ro
     command: >
       bash -c "
       airflow db migrate &&
-      airflow users create --username admin --password admin --firstname Admin --lastname Admin --role Admin --email admin@example.com 2>/dev/null || true &&
+      airflow users create --username ${AIRFLOW_ADMIN_USERNAME:-admin} --password ${AIRFLOW_ADMIN_PASSWORD:-admin} --firstname Admin --lastname Admin --role Admin --email ${AIRFLOW_ADMIN_EMAIL:-admin@example.com} 2>/dev/null || true &&
       airflow webserver &
       airflow scheduler
       "
+    networks:
+      - traffic-net
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    profiles:
+      - dev
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      API_DATA_DIR: /app/data
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      MINIO_ENDPOINT: minio:9000
+      NOMINATIM_URL: http://nominatim:8080
+      TOMTOM_API_KEY: ${TOMTOM_API_KEY:-}
+      OWM_API_KEY: ${OWM_API_KEY:-}
+      OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY:-}
+    volumes:
+      - .:/app
+    networks:
+      - traffic-net
+
+  python-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    profiles:
+      - test
+    command: make test
+    environment:
+      API_DATA_DIR: /app/data
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      MINIO_ENDPOINT: minio:9000
+    volumes:
+      - .:/app
+    networks:
+      - traffic-net
+
+  python-pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    profiles:
+      - pipeline
+    command: make gold
+    environment:
+      API_DATA_DIR: /app/data
+    volumes:
+      - .:/app
     networks:
       - traffic-net
 

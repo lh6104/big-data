@@ -5,6 +5,7 @@ import time
 import logging
 import json
 from datetime import datetime
+from pathlib import Path
 
 logging.basicConfig(
     level=logging.INFO,
@@ -309,11 +310,12 @@ def test_spark_jobs_import():
         "processing.bronze.batch_to_bronze",
     ]
 
+    project_root = Path(__file__).resolve().parents[1]
     all_ok = True
     for job_module in jobs:
         import_test = f"""
 import sys
-sys.path.insert(0, '/home/longha/Desktop/leue')
+sys.path.insert(0, '{project_root}')
 try:
     import {job_module}
     print("OK")

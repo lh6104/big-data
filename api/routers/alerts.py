@@ -1,11 +1,13 @@
 """Alert management endpoints."""
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from enum import Enum
 import logging
+
+from api.services.local_data import DataUnavailableError, latest_by_segment, normalize_city, severity_from_jam, traffic_features
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +40,37 @@ class AlertUpdate(BaseModel):
     acknowledged: bool
 
 
+class BulkAlertUpdate(BaseModel):
+    """Bulk alert status update."""
+    ids: List[str]
+    acknowledged: bool = True
+
+
+def _alert_from_row(row) -> Alert:
+    jam = float(row.jamFactor)
+    speed = float(row.currentSpeed)
+    baseline = float(getattr(row, "p50", getattr(row, "freeFlowSpeed", speed)))
+    severity_name = severity_from_jam(jam)
+    reason = f"Jam factor {jam:.1f}; speed {speed:.1f} km/h versus baseline {baseline:.1f} km/h"
+    return Alert(
+        alert_id=f"alert_{row.city}_{row.segment_id}",
+        segment_id=str(row.segment_id),
+        city=str(row.city),
+        severity=SeverityLevel(severity_name),
+        reason=reason,
+        predicted_speed=round(speed, 2),
+        baseline_p50=round(baseline, 2),
+        created_at=row.timestamp.to_pydatetime(),
+        acknowledged=False,
+    )
+
+
 # Endpoints
 @router.get("/active", response_model=List[Alert])
 def get_active_alerts(
-    city: Optional[str] = Query(None, description="Filter by city"),
-    severity: Optional[SeverityLevel] = Query(None, description="Filter by severity"),
-    limit: int = Query(50, description="Limit number of alerts")
+    city: Optional[str] = None,
+    severity: Optional[SeverityLevel] = None,
+    limit: int = 50,
 ):
     """Get active traffic alerts.
 
@@ -55,25 +82,19 @@ def get_active_alerts(
     Returns:
         List of active alerts
     """
-    # In production, query gold_alerts from Trino
-    # Filter by acknowledged=false
+    try:
+        latest = latest_by_segment(traffic_features(), normalize_city(city) if city else None)
+    except DataUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    alerts = [
-        Alert(
-            alert_id=f"alert_{i}",
-            segment_id=f"seg_{i}",
-            city=city or "hanoi",
-            severity=SeverityLevel.CRITICAL if i % 5 == 0 else SeverityLevel.HIGH,
-            reason=f"Speed below baseline by {20 + i}%",
-            predicted_speed=18.5 + i,
-            baseline_p50=40.0,
-            created_at=datetime.utcnow(),
-            acknowledged=False,
-        )
-        for i in range(min(limit, 3))
-    ]
+    if latest.empty:
+        return []
 
-    return alerts
+    latest = latest[latest["jamFactor"] >= 3].sort_values("jamFactor", ascending=False)
+    alerts = [_alert_from_row(row) for row in latest.itertuples(index=False)]
+    if severity:
+        alerts = [alert for alert in alerts if alert.severity == severity]
+    return alerts[:limit]
 
 
 @router.get("/{alert_id}", response_model=Alert)
@@ -86,18 +107,10 @@ def get_alert(alert_id: str):
     Returns:
         Alert details
     """
-    # In production, query from gold_alerts
-    return Alert(
-        alert_id=alert_id,
-        segment_id="seg_001",
-        city="hanoi",
-        severity=SeverityLevel.HIGH,
-        reason="Speed 22 km/h is <70% of baseline p50 (40 km/h)",
-        predicted_speed=22.0,
-        baseline_p50=40.0,
-        created_at=datetime.utcnow(),
-        acknowledged=False,
-    )
+    for alert in get_active_alerts(limit=1000):
+        if alert.alert_id == alert_id:
+            return alert
+    raise HTTPException(status_code=404, detail=f"Alert '{alert_id}' was not found in local data")
 
 
 @router.patch("/{alert_id}/ack", response_model=Alert)
@@ -111,24 +124,14 @@ def acknowledge_alert(alert_id: str, update: AlertUpdate):
     Returns:
         Updated alert
     """
-    # In production, update gold_alerts table
     logger.info(f"Alert {alert_id} acknowledged: {update.acknowledged}")
-
-    return Alert(
-        alert_id=alert_id,
-        segment_id="seg_001",
-        city="hanoi",
-        severity=SeverityLevel.HIGH,
-        reason="Speed 22 km/h is <70% of baseline p50 (40 km/h)",
-        predicted_speed=22.0,
-        baseline_p50=40.0,
-        created_at=datetime.utcnow(),
-        acknowledged=update.acknowledged,
-    )
+    alert = get_alert(alert_id)
+    alert.acknowledged = update.acknowledged
+    return alert
 
 
 @router.patch("/bulk-ack")
-def bulk_acknowledge_alerts(alert_ids: List[str], acknowledged: bool = True):
+def bulk_acknowledge_alerts(update: BulkAlertUpdate):
     """Bulk acknowledge/resolve alerts.
 
     Args:
@@ -138,10 +141,9 @@ def bulk_acknowledge_alerts(alert_ids: List[str], acknowledged: bool = True):
     Returns:
         Number of alerts updated
     """
-    # In production, bulk update gold_alerts
-    logger.info(f"Bulk acknowledged {len(alert_ids)} alerts: {acknowledged}")
+    logger.info(f"Bulk acknowledged {len(update.ids)} alerts: {update.acknowledged}")
 
     return {
-        "updated_count": len(alert_ids),
-        "acknowledged": acknowledged,
+        "updated_count": len(update.ids),
+        "acknowledged": update.acknowledged,
     }

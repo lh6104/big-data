@@ -1,4 +1,4 @@
-.PHONY: help up down logs restart clean demo test seed health gold gold-docker train-data news-bronze news-events ingest-raw-once ingest-raw-10m repair-env
+.PHONY: help up down logs restart clean demo test seed health gold gold-docker train-data news-bronze news-events ingest-raw-once ingest-raw-10m repair-env docker-build docker-test docker-api docker-shell docker-pipeline
 
 COMPOSE_FILE := docker-compose.yml
 COMPOSE_CMD := docker compose -f $(COMPOSE_FILE)
@@ -29,6 +29,10 @@ help:
 	@echo "  make seed        - Seed demo data into Kafka"
 	@echo "  make test        - Run test suite"
 	@echo "  make health      - Check stack health"
+	@echo "  make docker-build - Build Python 3.11 dev/test image"
+	@echo "  make docker-test  - Run Python tests in Docker"
+	@echo "  make docker-api   - Run FastAPI in Docker on :8000"
+	@echo "  make docker-shell - Open a shell in the Python dev container"
 	@echo ""
 	@echo "Development:"
 	@echo "  make install     - Install Python dependencies"
@@ -119,10 +123,31 @@ gold-docker:
 	@echo "✓ Baseline train data:      $(DATA_DIR)/gold/train_features_15m.parquet"
 	@echo "✓ Quality report:           $(DATA_DIR)/gold/data_quality_report.csv"
 
+docker-build:
+	@echo "Building Python 3.11 dev/test image..."
+	$(COMPOSE_CMD) build api
+
+docker-test:
+	@echo "Running Python tests in Docker..."
+	$(COMPOSE_CMD) run --build --rm python-test
+
+docker-api:
+	@echo "Starting FastAPI in Docker at http://localhost:8000 ..."
+	$(COMPOSE_CMD) up --build api
+
+docker-shell:
+	@echo "Opening Python 3.11 dev shell..."
+	$(COMPOSE_CMD) run --build --rm api bash
+
+docker-pipeline:
+	@echo "Building local Silver/Gold datasets in Python dev container..."
+	$(COMPOSE_CMD) run --build --rm python-pipeline
+
 test:
-	@echo "Running test pipeline..."
-	@$(PYTHON) scripts/test_news_pipeline.py
-	@echo "✓ Tests passed"
+	@echo "Running Python baseline tests..."
+	$(PYTHON) scripts/test_news_pipeline.py
+	pytest
+	@echo "✓ Python tests passed"
 
 health:
 	@echo "Checking stack health..."

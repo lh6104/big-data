@@ -21,6 +21,7 @@ import {
 } from "recharts";
 import { useState } from "react";
 import useSWR from "swr";
+import { apiGet } from "@/lib/api/client";
 
 
 
@@ -340,9 +341,9 @@ function Sparkle() {
 
 // Default segment ids representing the most congested currently active corridors.
 const CONGESTED_DEFAULTS = [
-  "SEG-HN-CG-00871",
-  "SEG-HCM-D1-00214",
-  "SEG-HN-DD-00533",
+  "HN_001",
+  "HN_002",
+  "HN_003",
 ];
 
 type UpstreamSegment = {
@@ -360,10 +361,7 @@ type UpstreamResponse = {
 };
 
 const fetcher = (url: string) =>
-  fetch(url).then((r) => {
-    if (!r.ok) throw new Error("Failed to load upstream chain");
-    return r.json() as Promise<UpstreamResponse>;
-  });
+  apiGet<UpstreamResponse>(url);
 
 function StatusBadge({ status }: { status: UpstreamSegment["status"] }) {
   const map = {
@@ -382,7 +380,7 @@ function StatusBadge({ status }: { status: UpstreamSegment["status"] }) {
 function LiveCorridorTracking() {
   const [segmentId, setSegmentId] = useSWRSafeState(CONGESTED_DEFAULTS[0]);
   const { data, error, isLoading, isValidating } = useSWR<UpstreamResponse>(
-    `/api/segments/${segmentId}/upstream`,
+    `/segments/${segmentId}/upstream`,
     fetcher,
     { refreshInterval: 60_000, revalidateOnFocus: false }
   );

@@ -3,10 +3,12 @@ import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { PlaceholderPage } from "@/components/dashboard/PlaceholderPage";
 import { Flame, MapPin, TrendingUp, TrendingDown, Minus, Layers } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { useAppStore, type CityKey } from "@/lib/store/useAppStore";
+import useSWR from "swr";
+import { apiGet } from "@/lib/api/client";
 
 const searchSchema = z.object({
   city: fallback(z.enum(["hanoi", "hcmc"]), "hanoi").default("hanoi"),
@@ -37,13 +39,35 @@ type Hotspot = {
   lon: number;
 };
 
-const hotspots: (Hotspot & { city: CityKey })[] = [
-  { id: "HS-01", name: "Cau Giay Cluster", area: "Cau Giay, Hanoi", severity: "Critical", segments: 14, avgSpeed: 12, jam: 9.1, started: "16:02", trend: "up", baseline: "+ 218%", lat: 21.0325, lon: 105.7995, city: "hanoi" },
-  { id: "HS-02", name: "Nguyen Trai Corridor", area: "Thanh Xuan, Hanoi", severity: "High", segments: 9, avgSpeed: 18, jam: 7.4, started: "15:48", trend: "up", baseline: "+ 142%", lat: 20.9985, lon: 105.8205, city: "hanoi" },
-  { id: "HS-03", name: "District 1 Core", area: "Ho Chi Minh City", severity: "High", segments: 11, avgSpeed: 21, jam: 6.8, started: "15:31", trend: "flat", baseline: "+ 96%", lat: 10.7790, lon: 106.7010, city: "hcmc" },
-  { id: "HS-04", name: "Long Bien Bridge", area: "Long Bien, Hanoi", severity: "Medium", segments: 4, avgSpeed: 27, jam: 5.2, started: "15:12", trend: "down", baseline: "+ 41%", lat: 21.0438, lon: 105.8635, city: "hanoi" },
-  { id: "HS-05", name: "Pham Hung Ring", area: "Nam Tu Liem, Hanoi", severity: "Medium", segments: 6, avgSpeed: 24, jam: 5.8, started: "14:55", trend: "down", baseline: "+ 38%", lat: 21.0140, lon: 105.7790, city: "hanoi" },
-];
+type ApiHotspot = {
+  hotspot_id: string;
+  cluster_id: number;
+  city: CityKey;
+  center_lat: number;
+  center_lon: number;
+  radius_km: number;
+  num_segments: number;
+  avg_congestion: number;
+  avg_jam_factor: number;
+  severity: "critical" | "high" | "medium" | "low";
+  detected_at: string;
+};
+
+const toHotspot = (h: ApiHotspot): Hotspot & { city: CityKey } => ({
+  id: h.hotspot_id,
+  name: `Cluster ${h.cluster_id}`,
+  area: h.city === "hanoi" ? "Hanoi" : "Ho Chi Minh City",
+  severity: (h.severity.charAt(0).toUpperCase() + h.severity.slice(1)) as Severity,
+  segments: h.num_segments,
+  avgSpeed: Math.max(0, Math.round(50 - h.avg_congestion)),
+  jam: h.avg_jam_factor,
+  started: new Date(h.detected_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+  trend: h.avg_jam_factor >= 6 ? "up" : "flat",
+  baseline: `+ ${Math.round(h.avg_jam_factor * 10)}%`,
+  lat: h.center_lat,
+  lon: h.center_lon,
+  city: h.city,
+});
 
 const CITY_CENTER: Record<CityKey, { lat: number; lon: number; zoom: number }> = {
   hanoi: { lat: 21.0285, lon: 105.8542, zoom: 12 },
@@ -87,6 +111,10 @@ function HotspotsPage() {
   const [panTarget, setPanTarget] = useState<{ lat: number; lon: number; id: string } | null>(null);
   const [mounted, setMounted] = useState(false);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const severityParam = severity === "all" ? "" : `&severity=${severity}`;
+  const { data, error, isLoading } = useSWR<ApiHotspot[]>(`/hotspots?city=${city}${severityParam}`, apiGet, {
+    refreshInterval: 60_000,
+  });
 
   useEffect(() => setMounted(true), []);
 
@@ -98,9 +126,7 @@ function HotspotsPage() {
     setSelectedSegment(selectedId);
   }, [selectedId, setSelectedSegment]);
 
-  const visibleHotspots = hotspots.filter(
-    (h) => h.city === city && (severity === "all" || h.severity.toLowerCase() === severity),
-  );
+  const visibleHotspots = useMemo(() => (data ?? []).map(toHotspot), [data]);
 
   const handleMapClick = (h: Hotspot) => {
     setSelectedId(h.id);
@@ -200,6 +226,11 @@ function HotspotsPage() {
             ) : (
               <div className="flex h-full items-center justify-center bg-secondary text-xs text-muted-foreground">
                 Loading map…
+              </div>
+            )}
+            {(isLoading || error || visibleHotspots.length === 0) && (
+              <div className="absolute right-3 top-3 z-[1000] rounded-2xl bg-card/95 px-3 py-2 text-xs text-muted-foreground backdrop-blur">
+                {error ? error.message : isLoading ? "Loading hotspots..." : "No hotspots for this filter"}
               </div>
             )}
 

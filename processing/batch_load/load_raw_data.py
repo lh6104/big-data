@@ -172,7 +172,7 @@ def main(raw_dir: str, warehouse_path: str):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
-    raw_dir = sys.argv[1] if len(sys.argv) > 1 else "/home/longha/Desktop/leue/raw"
+    raw_dir = sys.argv[1] if len(sys.argv) > 1 else "raw"
     warehouse_path = sys.argv[2] if len(sys.argv) > 2 else "s3a://lakehouse"
 
     main(raw_dir, warehouse_path)

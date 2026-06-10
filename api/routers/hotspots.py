@@ -6,6 +6,8 @@ from typing import List
 from datetime import datetime
 import logging
 
+from api.services.local_data import DataUnavailableError, latest_by_segment, normalize_city, traffic_features
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -40,25 +42,42 @@ def get_hotspots(
     Returns:
         List of detected hotspot clusters
     """
-    # In production, query gold_congestion_hotspots from Trino
-    hotspots = [
-        Hotspot(
-            hotspot_id=f"hotspot_{city}_{i}",
-            cluster_id=i,
-            city=city,
-            center_lat=20.8 + i * 0.05,
-            center_lon=105.8 + i * 0.05,
-            radius_km=0.8 + i * 0.2,
-            num_segments=5 + i,
-            avg_congestion=0.6 + i * 0.1,
-            avg_jam_factor=6.5 - i,
-            severity="high" if i % 3 == 0 else "medium",
-            detected_at=datetime.utcnow(),
+    city = normalize_city(city)
+    try:
+        latest = latest_by_segment(traffic_features(), city)
+    except DataUnavailableError as exc:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    if latest.empty:
+        return []
+
+    congested = latest[latest["jamFactor"] >= 3].copy()
+    if congested.empty:
+        return []
+
+    congested["cluster_id"] = congested["segment_name"].fillna(congested["segment_id"]).astype(str).str[:12]
+    hotspots = []
+    for idx, (_, group) in enumerate(congested.groupby("cluster_id")):
+        avg_jam = float(group["jamFactor"].mean())
+        sev = "critical" if avg_jam >= 8 else "high" if avg_jam >= 6 else "medium"
+        hotspots.append(
+            Hotspot(
+                hotspot_id=f"hotspot_{city}_{idx}",
+                cluster_id=idx,
+                city=city or str(group["city"].iloc[0]),
+                center_lat=round(float(group["lat"].mean()), 6),
+                center_lon=round(float(group["lon"].mean()), 6),
+                radius_km=0.8,
+                num_segments=int(group["segment_id"].nunique()),
+                avg_congestion=round(float((group["freeFlowSpeed"] - group["currentSpeed"]).clip(lower=0).mean()), 3),
+                avg_jam_factor=round(avg_jam, 2),
+                severity=sev,
+                detected_at=group["timestamp"].max().to_pydatetime(),
+            )
         )
-        for i in range(3)
-    ]
 
     if severity:
-        hotspots = [h for h in hotspots if h.severity == severity]
+        hotspots = [h for h in hotspots if h.severity == severity.lower()]
 
-    return hotspots
+    return sorted(hotspots, key=lambda item: item.avg_jam_factor, reverse=True)

@@ -6,12 +6,14 @@ import sys
 import json
 import logging
 from datetime import datetime
+from pathlib import Path
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_kafka_topics():
@@ -60,7 +62,7 @@ def test_docker_services():
         ["docker-compose", "ps", "--format", "json"],
         capture_output=True,
         text=True,
-        cwd="/home/longha/Desktop/leue",
+        cwd=PROJECT_ROOT,
         timeout=5
     )
 
@@ -188,7 +190,7 @@ def test_airflow_dags():
         "airflow/dags/dag_tomtom_stats.py",
     ]
 
-    base_path = "/home/longha/Desktop/leue"
+    base_path = PROJECT_ROOT
     missing = []
     for dag_file in dag_files:
         path = os.path.join(base_path, dag_file)

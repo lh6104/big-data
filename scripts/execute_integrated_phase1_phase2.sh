@@ -12,7 +12,7 @@ echo "╚═══════════════════════�
 echo ""
 
 WAREHOUSE="s3a://lakehouse"
-RAW_DATA_DIR="/home/longha/Desktop/leue/raw"
+RAW_DATA_DIR="${RAW_DATA_DIR:-raw}"
 
 # Check if running in background or interactive
 INTERACTIVE=${INTERACTIVE:-true}

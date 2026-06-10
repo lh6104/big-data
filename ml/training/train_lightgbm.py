@@ -11,7 +11,10 @@ This module:
 """
 
 import logging
+import argparse
+import os
 import sys
+from pathlib import Path
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -23,7 +26,10 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import mlflow
 import mlflow.lightgbm
 
-sys.path.insert(0, "/home/longha/Desktop/leue")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from processing.utils.spark_session import get_spark_session
 from processing.utils.iceberg_utils import write_iceberg_table
 
@@ -34,8 +40,10 @@ logger = logging.getLogger(__name__)
 class LightGBMTrainer:
     """LightGBM trainer for traffic forecasting."""
 
-    def __init__(self, s3_path="s3a://lakehouse"):
+    def __init__(self, s3_path: str = "s3a://lakehouse", mlflow_tracking_uri: str | None = None):
         self.s3_path = s3_path
+        if mlflow_tracking_uri:
+            mlflow.set_tracking_uri(mlflow_tracking_uri)
         self.spark = get_spark_session("train_lightgbm", s3_path)
         self.models = {}
         self.evaluations = {}
@@ -43,7 +51,14 @@ class LightGBMTrainer:
     def load_training_data(self):
         """Load gold_training_dataset and convert to pandas."""
         logger.info("📖 Loading gold_training_dataset...")
-        df = self.spark.read.format("iceberg").load(f"{self.s3_path}.db.gold_training_dataset")
+        table_name = f"{self.s3_path}.db.gold_training_dataset"
+        try:
+            df = self.spark.read.format("iceberg").load(table_name)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Could not load Iceberg table {table_name}. "
+                "Build the Gold dataset first or pass --s3-path/MLFLOW_TRACKING_URI for your environment."
+            ) from exc
 
         # Sample if dataset is large (for demo)
         if df.count() > 100000:
@@ -304,7 +319,14 @@ class LightGBMTrainer:
             self.spark.stop()
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Train LightGBM traffic forecasting models.")
+    parser.add_argument("--s3-path", default=os.getenv("LAKEHOUSE_S3_PATH", "s3a://lakehouse"))
+    parser.add_argument("--mlflow-tracking-uri", default=os.getenv("MLFLOW_TRACKING_URI"))
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    s3_path = sys.argv[1] if len(sys.argv) > 1 else "s3a://lakehouse"
-    trainer = LightGBMTrainer(s3_path)
+    args = parse_args()
+    trainer = LightGBMTrainer(args.s3_path, args.mlflow_tracking_uri)
     trainer.run()

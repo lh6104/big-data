@@ -2,21 +2,48 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PlaceholderPage } from "@/components/dashboard/PlaceholderPage";
 import { Bell, CheckCircle2, Clock, MapPin, TrendingUp, AlertTriangle, X } from "lucide-react";
+import useSWR from "swr";
+import { apiGet, apiPatch } from "@/lib/api/client";
 
 export const Route = createFileRoute("/_app/alerts")({
   component: AlertsPage,
 });
 
-const INITIAL_ALERTS = [
-  { id: "ALR-2481", loc: "Cau Giay, Hanoi", sev: "Critical", cause: "Accident + heavy rain", eta: "~ 38 min", source: "Anomaly detection", status: "active", t: "2m ago", rising: true },
-  { id: "ALR-2479", loc: "District 1, HCMC", sev: "Critical", cause: "Public event spillover", eta: "~ 1h 20m", source: "Rule-based", status: "acknowledged", t: "8m ago", rising: false },
-  { id: "ALR-2476", loc: "Nguyen Trai, Hanoi", sev: "High", cause: "Peak hour congestion", eta: "~ 25 min", source: "Model-based", status: "active", t: "14m ago", rising: true },
-  { id: "ALR-2470", loc: "Pham Hung, Hanoi", sev: "High", cause: "Predicted slow-down 240m", source: "Model-based", eta: "~ 18 min", status: "active", t: "21m ago", rising: false },
-  { id: "ALR-2468", loc: "Long Bien, Hanoi", sev: "Medium", cause: "Construction lane closure", eta: "~ 2h", source: "Rule-based", status: "acknowledged", t: "34m ago", rising: false },
-  { id: "ALR-2455", loc: "Dong Da, Hanoi", sev: "Low", cause: "Light slow-down", eta: "~ 8 min", source: "Anomaly detection", status: "resolved", t: "1h ago", rising: false },
-];
+type ApiAlert = {
+  alert_id: string;
+  segment_id: string;
+  city: string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  reason: string;
+  predicted_speed: number;
+  baseline_p50: number;
+  created_at: string;
+  acknowledged: boolean;
+};
 
-type Alert = (typeof INITIAL_ALERTS)[number];
+type Alert = {
+  id: string;
+  loc: string;
+  sev: "Critical" | "High" | "Medium" | "Low";
+  cause: string;
+  eta: string;
+  source: string;
+  status: "active" | "acknowledged" | "resolved";
+  t: string;
+  rising: boolean;
+};
+
+const toAlert = (a: ApiAlert): Alert => ({
+  id: a.alert_id,
+  loc: `${a.segment_id}, ${a.city.toUpperCase()}`,
+  sev: (a.severity.charAt(0) + a.severity.slice(1).toLowerCase()) as Alert["sev"],
+  cause: a.reason,
+  eta: `${Math.max(Math.round((a.baseline_p50 - a.predicted_speed) * 2), 0)} min risk`,
+  source: "Local gold dataset",
+  status: a.acknowledged ? "acknowledged" : "active",
+  t: new Date(a.created_at).toLocaleString(),
+  rising: a.severity === "CRITICAL" || a.severity === "HIGH",
+});
 
 const sevTone: Record<string, string> = {
   Critical: "bg-[oklch(0.94_0.06_25)] text-[oklch(0.5_0.2_25)]",
@@ -49,8 +76,11 @@ function matches(a: Alert, f: Filter) {
 function AlertsPage() {
   const [filter, setFilter] = useState<Filter>("All");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [alertList, setAlertList] = useState<Alert[]>(INITIAL_ALERTS);
   const [ackLoading, setAckLoading] = useState(false);
+  const { data, error, isLoading, mutate } = useSWR<ApiAlert[]>("/alerts/active?limit=100", apiGet, {
+    refreshInterval: 60_000,
+  });
+  const alertList = useMemo(() => (data ?? []).map(toAlert), [data]);
 
   const visible = useMemo(() => alertList.filter((a) => matches(a, filter)), [alertList, filter]);
   const visibleIds = visible.map((a) => a.id);
@@ -82,15 +112,8 @@ function AlertsPage() {
     if (selectedIds.length === 0) return;
     setAckLoading(true);
     try {
-      const res = await fetch("/api/alerts/bulk-ack", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: selectedIds }),
-      });
-      if (!res.ok) throw new Error("Failed to acknowledge");
-      setAlertList((prev) =>
-        prev.map((a) => (selectedIds.includes(a.id) ? { ...a, status: "acknowledged" as const } : a))
-      );
+      await apiPatch("/alerts/bulk-ack", { ids: selectedIds, acknowledged: true });
+      await mutate();
       clearSelection();
     } catch (e) {
       console.error(e);
@@ -154,6 +177,16 @@ function AlertsPage() {
           </div>
 
           <div className="overflow-x-auto">
+            {error && (
+              <div className="mb-4 rounded-2xl bg-secondary p-4 text-sm text-muted-foreground">
+                {error.message}
+              </div>
+            )}
+            {isLoading && (
+              <div className="mb-4 rounded-2xl bg-secondary p-4 text-sm text-muted-foreground">
+                Loading alerts...
+              </div>
+            )}
             <table className="w-full text-sm">
               <thead className="text-[11px] uppercase tracking-wider text-muted-foreground">
                 <tr className="text-left">

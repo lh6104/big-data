@@ -2,6 +2,8 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapPin, Wind, Gauge, Clock, RefreshCw, AlertOctagon, CloudRain, X } from "lucide-react";
+import useSWR from "swr";
+import { apiGet } from "@/lib/api/client";
 
 type City = "Hanoi" | "HCMC";
 type Congestion = "All" | "Free" | "Slow" | "Congested";
@@ -31,6 +33,21 @@ type Hotspot = {
   segment_count: number;
   avg_speed: number;
   city: City;
+};
+
+type SegmentFeatureCollection = {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    geometry: { type: "LineString"; coordinates: [number, number][] };
+    properties: {
+      segment_id: string;
+      jam_factor: number;
+      current_speed: number;
+      free_flow_speed: number;
+      city: "hanoi" | "hcmc";
+    };
+  }>;
 };
 
 const CITY_CENTER: Record<City, { lat: number; lng: number; zoom: number }> = {
@@ -159,14 +176,37 @@ export function LiveMapView({
   const [selected, setSelected] = useState<Segment | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const apiCity = city === "Hanoi" ? "hanoi" : "hcmc";
+  const { data: segmentGeojson, error: segmentError, isLoading: segmentsLoading, mutate: reloadSegments } =
+    useSWR<SegmentFeatureCollection>(`/segments/geojson?city=${apiCity}&refresh=${refreshKey}`, apiGet, {
+      revalidateOnFocus: false,
+    });
 
   useEffect(() => setMounted(true), []);
 
+  const apiSegments = useMemo<Segment[]>(() => {
+    if (!segmentGeojson?.features?.length) return [];
+    return segmentGeojson.features.map((feature) => ({
+      segment_id: feature.properties.segment_id,
+      name: feature.properties.segment_id,
+      road_type: "Arterial",
+      geometry: feature.geometry,
+      currentSpeed: feature.properties.current_speed,
+      freeFlowSpeed: feature.properties.free_flow_speed,
+      jamFactor: feature.properties.jam_factor,
+      confidence: 1,
+      city,
+      weather: { condition: "Local data", temp: 0, visibilityKm: 0 },
+      updatedAt: new Date().toISOString(),
+    }));
+  }, [segmentGeojson, city]);
+
   const filteredSegments = useMemo(() => {
-    return SEGMENTS.filter((s) => s.city === city)
+    const source = apiSegments.length ? apiSegments : SEGMENTS;
+    return source.filter((s) => s.city === city)
       .filter((s) => (roadType === "All" ? true : s.road_type === roadType))
       .filter((s) => (congestion === "All" ? true : congestionOf(s) === congestion));
-  }, [city, roadType, congestion, refreshKey]);
+  }, [apiSegments, city, roadType, congestion, refreshKey]);
 
   const filteredHotspots = useMemo(() => HOTSPOTS.filter((h) => h.city === city), [city, refreshKey]);
 
@@ -213,7 +253,10 @@ export function LiveMapView({
             </button>
           ))}
           <button
-            onClick={() => setRefreshKey((k) => k + 1)}
+            onClick={() => {
+              setRefreshKey((k) => k + 1);
+              reloadSegments();
+            }}
             className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-foreground px-3 py-1.5 text-[11px] font-semibold text-background"
           >
             <RefreshCw className="h-3 w-3" /> Refresh
@@ -288,6 +331,11 @@ export function LiveMapView({
               <span className="flex items-center gap-1.5"><span className="h-2 w-6 rounded-full" style={{ background: CONG_COLOR.Congested }} /> Congested</span>
             </div>
           </div>
+          {(segmentsLoading || segmentError) && (
+            <div className="absolute right-4 top-4 z-[1000] rounded-2xl bg-card/95 px-3 py-2 text-xs text-muted-foreground shadow backdrop-blur">
+              {segmentError ? segmentError.message : "Loading live segments..."}
+            </div>
+          )}
         </div>
       </div>
 

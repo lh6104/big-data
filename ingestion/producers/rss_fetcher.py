@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from time import mktime
 from typing import Optional, Tuple
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import feedparser
 
@@ -25,6 +26,17 @@ TRAFFIC_KEYWORDS: set[str] = {
     "bão", "gió mạnh", "sương mù",
     "tai nạn giao thông", "ách tắc",
 }
+
+
+def _normalize_url(url: str) -> str:
+    """Remove fragments and common tracking query params from a URL."""
+    split = urlsplit(url.strip())
+    query = [
+        (key, value)
+        for key, value in parse_qsl(split.query, keep_blank_values=True)
+        if not key.lower().startswith("utm_") and key.lower() not in {"fbclid", "gclid"}
+    ]
+    return urlunsplit((split.scheme, split.netloc, split.path.rstrip("/"), urlencode(query), ""))
 
 
 def _is_traffic_related(title: str, summary: str) -> bool:

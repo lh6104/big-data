@@ -8,9 +8,9 @@ import pytest
 from unittest.mock import patch
 
 from models.event import EventType
-from nlp.classifier import _rule_classify
-from nlp.severity import score_severity
-from nlp.preprocessor import clean_html, normalize_unicode, preprocess
+from processing.silver.classifier import _rule_classify
+from processing.silver.severity import score_severity
+from processing.silver.preprocessor import clean_html, normalize_unicode, preprocess
 
 
 # ── Test samples (50+ câu) ────────────────────────────────────────────────────

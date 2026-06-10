@@ -2,9 +2,11 @@
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 from datetime import datetime
 import logging
+
+from api.services.local_data import DataUnavailableError, latest_by_segment, normalize_city, train_features, traffic_features
 
 logger = logging.getLogger(__name__)
 
@@ -58,19 +60,33 @@ def get_current_traffic(city: str):
     Returns:
         Current traffic status with aggregated metrics
     """
+    city = normalize_city(city)
     if city not in ["hanoi", "hcmc"]:
         raise HTTPException(status_code=400, detail=f"Unknown city: {city}")
 
-    # In production, query Redis cache or Trino
-    # For now, return mock data
+    try:
+        latest = latest_by_segment(traffic_features(), city)
+    except DataUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    if latest.empty:
+        raise HTTPException(status_code=404, detail=f"No local traffic data found for city '{city}'")
+
+    total_segments = int(latest["segment_id"].nunique())
+    avg_speed = float(latest["currentSpeed"].mean())
+    max_jam = float(latest["jamFactor"].max())
+    congestion_ratio = float((latest["jamFactor"] >= 3).mean())
+    critical_count = int((latest["jamFactor"] >= 6).sum())
+    timestamp = latest["timestamp"].max().to_pydatetime()
+
     return TrafficStatus(
         city=city,
-        total_segments=450 if city == "hanoi" else 380,
-        avg_speed=35.5,
-        congestion_ratio=0.42,
-        max_jam_factor=7.8,
-        critical_segment_count=12,
-        timestamp=datetime.utcnow(),
+        total_segments=total_segments,
+        avg_speed=round(avg_speed, 2),
+        congestion_ratio=round(congestion_ratio, 4),
+        max_jam_factor=round(max_jam, 2),
+        critical_segment_count=critical_count,
+        timestamp=timestamp,
     )
 
 
@@ -91,17 +107,33 @@ def get_speed_forecast(
     if horizon not in [15, 60, 240]:
         raise HTTPException(status_code=400, detail="Horizon must be 15, 60, or 240 minutes")
 
-    # In production, query gold_prediction_results from Trino
-    # For now, return mock data
+    try:
+        df = train_features(60 if horizon == 60 else 15)
+    except DataUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    segment_rows = df[df["segment_id"].astype(str) == segment_id]
+    if segment_rows.empty:
+        raise HTTPException(status_code=404, detail=f"No local training rows found for segment '{segment_id}'")
+
+    latest = segment_rows.sort_values("timestamp").iloc[-1]
+    current_speed = float(latest.get("currentSpeed", 0))
+    if "target_speed" in latest:
+        predicted_speed = float(latest["target_speed"])
+    else:
+        predicted_speed = current_speed
+    baseline_p50 = float(latest.get("p50", latest.get("speed_rolling_avg_60m", current_speed)))
+    baseline_p85 = float(latest.get("p85", max(baseline_p50, current_speed)))
+
     return SpeedForecast(
         segment_id=segment_id,
-        city="hanoi",
+        city=str(latest.get("city", "unknown")),
         horizon_minutes=horizon,
-        predicted_speed=32.5 if horizon == 15 else 28.3,
-        confidence=0.92,
-        baseline_p50=40.0,
-        baseline_p85=50.0,
-        timestamp=datetime.utcnow(),
+        predicted_speed=round(predicted_speed, 2),
+        confidence=0.65,
+        baseline_p50=round(baseline_p50, 2),
+        baseline_p85=round(baseline_p85, 2),
+        timestamp=datetime.fromisoformat(str(latest["timestamp"])),
     )
 
 
@@ -119,17 +151,26 @@ def list_traffic_segments(
     Returns:
         List of traffic segments
     """
-    # In production, query silver_traffic_cleaned with pagination
+    city = normalize_city(city)
+    try:
+        latest = latest_by_segment(traffic_features(), city)
+    except DataUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    if latest.empty:
+        return []
+
+    latest = latest.sort_values("jamFactor", ascending=False).head(limit)
     return [
         TrafficSegment(
-            segment_id=f"seg_{i}",
-            city=city,
-            current_speed=25 + i % 30,
-            free_flow_speed=50.0,
-            jam_factor=5.0 - (i % 8),
-            timestamp=datetime.utcnow(),
-            road_class="primary",
-            district="dist_1",
+            segment_id=str(row.segment_id),
+            city=str(row.city),
+            current_speed=round(float(row.currentSpeed), 2),
+            free_flow_speed=round(float(row.freeFlowSpeed), 2),
+            jam_factor=round(float(row.jamFactor), 2),
+            timestamp=row.timestamp.to_pydatetime(),
+            road_class=str(getattr(row, "road_class_encoded", "unknown")),
+            district=str(getattr(row, "district", "unknown")),
         )
-        for i in range(min(limit, 10))
+        for row in latest.itertuples(index=False)
     ]

@@ -10,7 +10,7 @@ echo "======================================================================"
 echo ""
 
 WAREHOUSE="s3a://lakehouse"
-RAW_DATA_DIR="/home/longha/Desktop/leue/raw"
+RAW_DATA_DIR="${RAW_DATA_DIR:-raw}"
 
 # Test 1: Verify raw data files exist
 echo "✅ TEST 1: Raw Data Structure"

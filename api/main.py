@@ -10,14 +10,14 @@ Endpoints:
 """
 
 import logging
-from fastapi import FastAPI, HTTPException, Query
+import os
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime
 import uvicorn
 
-# Import routers
-from routers import traffic, alerts, explain, hotspots, segments, monitoring, settings, routing
+from api.routers import alerts, explain, hotspots, monitoring, routing, segments, settings, traffic
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,10 +29,15 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS middleware (allow frontend at localhost:3000)
+allowed_origins = os.getenv(
+    "API_CORS_ORIGINS",
+    "http://localhost:3000,http://localhost:5173,http://localhost:8000",
+).split(",")
+
+# CORS middleware for local frontend development.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8000"],
+    allow_origins=[origin.strip() for origin in allowed_origins if origin.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

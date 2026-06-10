@@ -8,11 +8,14 @@ Evaluates alert rules and generates traffic alerts based on:
 
 import logging
 import sys
+from pathlib import Path
 import pandas as pd
 from datetime import datetime
 import json
 
-sys.path.insert(0, "/home/longha/Desktop/leue")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 from processing.utils.spark_session import get_spark_session
 from processing.utils.iceberg_utils import write_iceberg_table
 

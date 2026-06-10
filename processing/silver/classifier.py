@@ -45,8 +45,8 @@ _RULES: dict[EventType, list[str]] = {
 _PRIORITY = [
     EventType.accident,
     EventType.flood,
-    EventType.road_work,
     EventType.event,
+    EventType.road_work,
     EventType.weather,
 ]
 

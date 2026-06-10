@@ -27,7 +27,7 @@ dag = DAG(
 
 SPARK_SUBMIT = "spark-submit --master spark://spark-master:7077 --deploy-mode client --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.5.0"
 WAREHOUSE = "s3a://lakehouse"
-RAW_DATA_DIR = "/home/longha/Desktop/leue/raw"
+RAW_DATA_DIR = "/opt/airflow/raw"
 
 # Phase 2a: Clean traffic and weather in parallel
 with TaskGroup("clean_data", tooltip="Validate and clean raw data") as tg_clean:

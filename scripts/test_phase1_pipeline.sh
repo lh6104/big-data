@@ -32,7 +32,7 @@ echo "✓ Docker Compose installed"
 # Check project structure
 echo ""
 echo "Step 3: Checking project structure..."
-cd /home/longha/Desktop/leue
+cd "$(dirname "$0")/.."
 
 required_files=(
     "docker-compose.yml"

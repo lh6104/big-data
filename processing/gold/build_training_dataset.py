@@ -15,6 +15,7 @@ Then creates targets: future_speed_{15m, 60m, 240m}
 
 import logging
 import sys
+from pathlib import Path
 from datetime import timedelta
 from pyspark.sql import SparkSession, functions as F
 from pyspark.sql.window import Window
@@ -29,9 +30,9 @@ from feature_lag import engineer_lag_features
 from feature_event import engineer_event_features
 from feature_graph import engineer_graph_features
 
-# Import utility functions
-import sys
-sys.path.insert(0, "/home/longha/Desktop/leue")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 from processing.utils.spark_session import get_spark_session
 from processing.utils.iceberg_utils import get_iceberg_session, write_iceberg_table
 

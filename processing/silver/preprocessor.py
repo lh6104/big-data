@@ -15,6 +15,7 @@ def clean_html(text: str) -> str:
     """Bỏ tag HTML, decode HTML entity, normalize whitespace."""
     text = _HTML_TAG_RE.sub(" ", text)
     text = html.unescape(text)
+    text = _HTML_TAG_RE.sub(" ", text)
     text = _ENTITY_RE.sub(" ", text)
     text = _WHITESPACE_RE.sub(" ", text)
     return text.strip()

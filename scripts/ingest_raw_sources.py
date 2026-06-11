@@ -25,15 +25,13 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 from urllib.parse import urljoin
 
 import requests
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from ingestion.producers.rss_fetcher import fetch_rss
 
 
 LOGGER = logging.getLogger(__name__)
@@ -121,18 +119,69 @@ def append_jsonl(raw_dir: Path, subdir: str, prefix: str, records: list[dict[str
     return path
 
 
-def last_coordinate(flow: dict[str, Any], fallback: dict[str, Any]) -> tuple[float, float]:
+def flow_coordinates(flow: dict[str, Any]) -> list[dict[str, float]]:
     coords = flow.get("coordinates", {}).get("coordinate") or flow.get("coordinates") or []
-    if isinstance(coords, list) and coords:
-        point = coords[-1]
+    if not isinstance(coords, list):
+        return []
+    normalized = []
+    for point in coords:
         if isinstance(point, dict):
-            return float(point.get("latitude", fallback["lat"])), float(point.get("longitude", fallback["lon"]))
-        if isinstance(point, (list, tuple)) and len(point) >= 2:
-            return float(point[1]), float(point[0])
+            lat = point.get("latitude")
+            lon = point.get("longitude")
+        elif isinstance(point, (list, tuple)) and len(point) >= 2:
+            lon, lat = point[0], point[1]
+        else:
+            continue
+        if lat is None or lon is None:
+            continue
+        normalized.append({"latitude": float(lat), "longitude": float(lon)})
+    return normalized
+
+
+def last_coordinate(flow: dict[str, Any], fallback: dict[str, Any]) -> tuple[float, float]:
+    coords = flow_coordinates(flow)
+    if coords:
+        point = coords[-1]
+        return point["latitude"], point["longitude"]
     return float(fallback["lat"]), float(fallback["lon"])
 
 
-def collect_tomtom(raw_dir: Path, bucket_minutes: int, timeout: int) -> int:
+def load_traffic_points(path: Path | None, city: str, limit: int | None) -> list[dict[str, Any]]:
+    if path:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = yaml.safe_load(handle) or {}
+        points = payload.get("points", [])
+    else:
+        points = TRAFFIC_POINTS
+
+    city = city.lower().strip()
+    if city != "all":
+        points = [point for point in points if str(point.get("city", "")).lower() == city]
+    if limit is not None:
+        points = points[:limit]
+    return points
+
+
+def traffic_request_plan(points: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "city": point["city"],
+            "segment_id": point["segment_id"],
+            "segment_name": point["segment_name"],
+            "lat": point["lat"],
+            "lon": point["lon"],
+        }
+        for point in points
+    ]
+
+
+def collect_tomtom(raw_dir: Path, bucket_minutes: int, timeout: int, points: list[dict[str, Any]], dry_run: bool) -> int:
+    LOGGER.info("TomTom request plan: %s point requests", len(points))
+    if dry_run:
+        LOGGER.info("Dry run enabled; TomTom API will not be called.")
+        LOGGER.info("First planned requests: %s", traffic_request_plan(points[:5]))
+        return 0
+
     api_key = os.getenv("TOMTOM_API_KEY")
     if not api_key:
         LOGGER.warning("Skipping TomTom: TOMTOM_API_KEY is not set")
@@ -141,7 +190,12 @@ def collect_tomtom(raw_dir: Path, bucket_minutes: int, timeout: int) -> int:
     records = []
     now = utc_now()
     time_bucket = bucket_time(now, bucket_minutes).isoformat()
-    for point in TRAFFIC_POINTS:
+    seen_points = set()
+    for point in points:
+        point_key = (point["city"], point["segment_id"], round(float(point["lat"]), 6), round(float(point["lon"]), 6))
+        if point_key in seen_points:
+            continue
+        seen_points.add(point_key)
         params = {
             "key": api_key,
             "point": f"{point['lat']},{point['lon']}",
@@ -154,6 +208,7 @@ def collect_tomtom(raw_dir: Path, bucket_minutes: int, timeout: int) -> int:
             payload = response.json()
             flow = payload.get("flowSegmentData", payload)
             lat, lon = last_coordinate(flow, point)
+            coordinates = flow_coordinates(flow)
             current_speed = flow.get("currentSpeed")
             free_flow_speed = flow.get("freeFlowSpeed")
             if current_speed is None or free_flow_speed is None:
@@ -171,9 +226,11 @@ def collect_tomtom(raw_dir: Path, bucket_minutes: int, timeout: int) -> int:
                 "city": point["city"],
                 "segment_id": point["segment_id"],
                 "segment_name": point["segment_name"],
+                "district": point.get("district"),
                 "weather_cell_id": point["weather_cell_id"],
                 "lat": lat,
                 "lon": lon,
+                "geometry": json.dumps({"type": "LineString", "coordinates": coordinates}, ensure_ascii=False) if coordinates else None,
                 "event_time": now.isoformat(),
                 "ingestion_time": iso_now(),
                 "time_bucket": time_bucket,
@@ -264,6 +321,8 @@ def load_env_file(path: Path) -> None:
 
 
 def collect_rss(raw_dir: Path, sources: list[dict[str, Any]]) -> int:
+    from ingestion.producers.rss_fetcher import fetch_rss
+
     records = []
     now = iso_now()
     for source in sources:
@@ -386,8 +445,10 @@ def run(args: argparse.Namespace) -> None:
     raw_dir = args.raw_dir
     raw_dir.mkdir(parents=True, exist_ok=True)
     load_env_file(Path(".env"))
-    load_env_file(Path(".env.local"))
+    for env_file in args.env_file:
+        load_env_file(env_file)
     sources = load_sources(args.sources)
+    traffic_points = load_traffic_points(args.traffic_points, args.city, args.limit)
     deadline = time.monotonic() + args.duration_seconds
     cycle = 0
 
@@ -395,10 +456,10 @@ def run(args: argparse.Namespace) -> None:
         cycle += 1
         LOGGER.info("Starting raw ingest cycle %s", cycle)
         counts = {
-            "traffic": collect_tomtom(raw_dir, args.bucket_minutes, args.timeout),
-            "weather": collect_weather(raw_dir, args.bucket_minutes, args.timeout),
-            "rss_events": collect_rss(raw_dir, sources),
-            "html_events": collect_html(raw_dir, sources, args.timeout),
+            "traffic": 0 if args.skip_traffic else collect_tomtom(raw_dir, args.bucket_minutes, args.timeout, traffic_points, args.dry_run),
+            "weather": 0 if args.skip_weather or args.dry_run else collect_weather(raw_dir, args.bucket_minutes, args.timeout),
+            "rss_events": 0 if args.skip_events or args.dry_run else collect_rss(raw_dir, sources),
+            "html_events": 0 if args.skip_events or args.dry_run else collect_html(raw_dir, sources, args.timeout),
         }
         LOGGER.info("Cycle %s counts: %s", cycle, counts)
 
@@ -416,6 +477,20 @@ def main() -> None:
     parser.add_argument("--bucket-minutes", type=int, default=5)
     parser.add_argument("--timeout", type=int, default=15)
     parser.add_argument("--once", action="store_true", help="Run one cycle only.")
+    parser.add_argument("--traffic-points", type=Path, default=Path("config/hanoi_traffic_points.yaml"))
+    parser.add_argument("--city", default="all", help="Traffic point city filter, e.g. hanoi, hcmc, all.")
+    parser.add_argument("--limit", type=int, default=None, help="Maximum TomTom point requests per cycle.")
+    parser.add_argument("--dry-run", action="store_true", help="Print request counts without calling external APIs.")
+    parser.add_argument("--skip-traffic", action="store_true")
+    parser.add_argument("--skip-weather", action="store_true")
+    parser.add_argument("--skip-events", action="store_true")
+    parser.add_argument(
+        "--env-file",
+        type=Path,
+        action="append",
+        default=[],
+        help="Optional env file to load. .env.local is never loaded unless explicitly passed.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

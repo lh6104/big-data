@@ -61,7 +61,27 @@ def iter_jsonl(paths: Iterable[Path]) -> Iterable[dict]:
                 except json.JSONDecodeError as exc:
                     LOGGER.warning("Skipping invalid JSON in %s:%s: %s", path, line_no, exc)
                     continue
-                record.pop("raw", None)
+                raw = record.pop("raw", None)
+                if "geometry" not in record and isinstance(raw, dict):
+                    flow = raw.get("flowSegmentData", raw)
+                    coordinates = flow.get("coordinates", {}).get("coordinate") or flow.get("coordinates") or []
+                    if isinstance(coordinates, list) and coordinates:
+                        normalized = []
+                        for point in coordinates:
+                            if isinstance(point, dict):
+                                lat = point.get("latitude")
+                                lon = point.get("longitude")
+                            elif isinstance(point, (list, tuple)) and len(point) >= 2:
+                                lon, lat = point[0], point[1]
+                            else:
+                                continue
+                            if lat is not None and lon is not None:
+                                normalized.append({"latitude": float(lat), "longitude": float(lon)})
+                        if normalized:
+                            record["geometry"] = json.dumps(
+                                {"type": "LineString", "coordinates": normalized},
+                                ensure_ascii=False,
+                            )
                 yield record
 
 
@@ -101,6 +121,7 @@ def clean_traffic(df: pd.DataFrame, bucket_minutes: int) -> pd.DataFrame:
         "weather_cell_id",
         "lat",
         "lon",
+        "geometry",
         "event_time",
         "time_bucket",
         "currentSpeed",
@@ -192,6 +213,7 @@ def deduplicate_traffic(df: pd.DataFrame) -> pd.DataFrame:
         "provider": "last",
         "segment_name": "last",
         "weather_cell_id": "last",
+        "geometry": "last",
         "roadClosure": "last",
         "date": "last",
     }

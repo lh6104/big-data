@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 import logging
+import ast
+import json
 
 from api.services.local_data import DataUnavailableError, latest_by_segment, normalize_city, synthetic_geojson_line, traffic_features
 
@@ -32,6 +34,32 @@ class SegmentGeoJSON(BaseModel):
     features: List[dict]
 
 
+def _geometry_coordinates(row) -> list[list[float]]:
+    geometry = getattr(row, "geometry", None)
+    if isinstance(geometry, str) and geometry:
+        try:
+            geometry = json.loads(geometry)
+        except json.JSONDecodeError:
+            try:
+                geometry = ast.literal_eval(geometry)
+            except (ValueError, SyntaxError):
+                geometry = None
+    if isinstance(geometry, dict):
+        coords = geometry.get("coordinates") or []
+        normalized = []
+        for point in coords:
+            if isinstance(point, dict):
+                lat = point.get("latitude")
+                lon = point.get("longitude")
+                if lat is not None and lon is not None:
+                    normalized.append([float(lon), float(lat)])
+            elif isinstance(point, (list, tuple)) and len(point) >= 2:
+                normalized.append([float(point[0]), float(point[1])])
+        if len(normalized) >= 2:
+            return normalized
+    return synthetic_geojson_line(float(row.lat), float(row.lon))
+
+
 @router.get("/geojson", response_model=SegmentGeoJSON)
 def get_segments_geojson(city: str = Query("hanoi", description="City code")):
     """Get segments as GeoJSON for Leaflet map rendering.
@@ -54,7 +82,7 @@ def get_segments_geojson(city: str = Query("hanoi", description="City code")):
                 "type": "Feature",
                 "geometry": {
                     "type": "LineString",
-                    "coordinates": synthetic_geojson_line(float(row.lat), float(row.lon)),
+                    "coordinates": _geometry_coordinates(row),
                 },
                 "properties": {
                     "segment_id": str(row.segment_id),

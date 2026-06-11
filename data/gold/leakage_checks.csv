@@ -13,7 +13,7 @@ speed_lag_11,pass,lag uses exact historical bucket t-55m
 speed_lag_12,pass,lag uses exact historical bucket t-60m
 rolling_features,pass,rolling features are computed from exact speed_lag_* columns and exclude currentSpeed
 future_speed_15m,pass,target built by exact self-join on time_bucket + 15m; valid rows=2420
-future_speed_60m,pass,target built by exact self-join on time_bucket + 60m; valid rows=2285
+future_speed_60m,pass,target built by exact self-join on time_bucket + 60m; valid rows=2305
 future_speed_240m,pass,target built by exact self-join on time_bucket + 240m; valid rows=1345
 weather_join,pass,weather merged with backward asof join; no future weather rows are used
 global_baseline_features,pass,p15/p50/p85 baseline columns stay in dashboard features but are dropped from model training files

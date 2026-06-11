@@ -1,0 +1,68 @@
+# Hanoi traffic monitoring points for bounded TomTom Flow Segment sampling.
+# Each point is one API request; use --dry-run and --limit before live crawls.
+points:
+  - {city: hanoi, segment_id: HN_HK_001, segment_name: Hoan Kiem - Dinh Tien Hoang, district: Hoan Kiem, weather_cell_id: HN_W_HK, lat: 21.0288, lon: 105.8520}
+  - {city: hanoi, segment_id: HN_HK_002, segment_name: Hoan Kiem - Hai Ba Trung, district: Hoan Kiem, weather_cell_id: HN_W_HK, lat: 21.0242, lon: 105.8516}
+  - {city: hanoi, segment_id: HN_HK_003, segment_name: Hoan Kiem - Tran Quang Khai, district: Hoan Kiem, weather_cell_id: HN_W_HK, lat: 21.0275, lon: 105.8617}
+  - {city: hanoi, segment_id: HN_HK_004, segment_name: Hoan Kiem - Ly Thuong Kiet, district: Hoan Kiem, weather_cell_id: HN_W_HK, lat: 21.0216, lon: 105.8500}
+  - {city: hanoi, segment_id: HN_BD_001, segment_name: Ba Dinh - Kim Ma, district: Ba Dinh, weather_cell_id: HN_W_BD, lat: 21.0326, lon: 105.8211}
+  - {city: hanoi, segment_id: HN_BD_002, segment_name: Ba Dinh - Nguyen Thai Hoc, district: Ba Dinh, weather_cell_id: HN_W_BD, lat: 21.0280, lon: 105.8340}
+  - {city: hanoi, segment_id: HN_BD_003, segment_name: Ba Dinh - Lieu Giai, district: Ba Dinh, weather_cell_id: HN_W_BD, lat: 21.0372, lon: 105.8146}
+  - {city: hanoi, segment_id: HN_BD_004, segment_name: Ba Dinh - Van Cao, district: Ba Dinh, weather_cell_id: HN_W_BD, lat: 21.0438, lon: 105.8153}
+  - {city: hanoi, segment_id: HN_DD_001, segment_name: Dong Da - Nguyen Chi Thanh, district: Dong Da, weather_cell_id: HN_W_DD, lat: 21.0230, lon: 105.8100}
+  - {city: hanoi, segment_id: HN_DD_002, segment_name: Dong Da - Tay Son, district: Dong Da, weather_cell_id: HN_W_DD, lat: 21.0090, lon: 105.8240}
+  - {city: hanoi, segment_id: HN_DD_003, segment_name: Dong Da - Lang, district: Dong Da, weather_cell_id: HN_W_DD, lat: 21.0170, lon: 105.8060}
+  - {city: hanoi, segment_id: HN_DD_004, segment_name: Dong Da - Xa Dan, district: Dong Da, weather_cell_id: HN_W_DD, lat: 21.0135, lon: 105.8330}
+  - {city: hanoi, segment_id: HN_DD_005, segment_name: Dong Da - Chua Boc, district: Dong Da, weather_cell_id: HN_W_DD, lat: 21.0084, lon: 105.8319}
+  - {city: hanoi, segment_id: HN_CG_001, segment_name: Cau Giay - Cau Giay, district: Cau Giay, weather_cell_id: HN_W_CG, lat: 21.0320, lon: 105.8006}
+  - {city: hanoi, segment_id: HN_CG_002, segment_name: Cau Giay - Xuan Thuy, district: Cau Giay, weather_cell_id: HN_W_CG, lat: 21.0368, lon: 105.7846}
+  - {city: hanoi, segment_id: HN_CG_003, segment_name: Cau Giay - Tran Duy Hung, district: Cau Giay, weather_cell_id: HN_W_CG, lat: 21.0077, lon: 105.7941}
+  - {city: hanoi, segment_id: HN_CG_004, segment_name: Cau Giay - Pham Hung, district: Cau Giay, weather_cell_id: HN_W_CG, lat: 21.0189, lon: 105.7835}
+  - {city: hanoi, segment_id: HN_CG_005, segment_name: Cau Giay - Trung Kinh, district: Cau Giay, weather_cell_id: HN_W_CG, lat: 21.0142, lon: 105.7939}
+  - {city: hanoi, segment_id: HN_TX_001, segment_name: Thanh Xuan - Nguyen Trai, district: Thanh Xuan, weather_cell_id: HN_W_TX, lat: 20.9956, lon: 105.8220}
+  - {city: hanoi, segment_id: HN_TX_002, segment_name: Thanh Xuan - Truong Chinh, district: Thanh Xuan, weather_cell_id: HN_W_TX, lat: 21.0004, lon: 105.8309}
+  - {city: hanoi, segment_id: HN_TX_003, segment_name: Thanh Xuan - Nguyen Xien, district: Thanh Xuan, weather_cell_id: HN_W_TX, lat: 20.9849, lon: 105.7989}
+  - {city: hanoi, segment_id: HN_TX_004, segment_name: Thanh Xuan - Khuat Duy Tien, district: Thanh Xuan, weather_cell_id: HN_W_TX, lat: 20.9993, lon: 105.7980}
+  - {city: hanoi, segment_id: HN_TX_005, segment_name: Thanh Xuan - Le Van Luong, district: Thanh Xuan, weather_cell_id: HN_W_TX, lat: 21.0030, lon: 105.8010}
+  - {city: hanoi, segment_id: HN_HBT_001, segment_name: Hai Ba Trung - Dai Co Viet, district: Hai Ba Trung, weather_cell_id: HN_W_HBT, lat: 21.0062, lon: 105.8460}
+  - {city: hanoi, segment_id: HN_HBT_002, segment_name: Hai Ba Trung - Minh Khai, district: Hai Ba Trung, weather_cell_id: HN_W_HBT, lat: 20.9995, lon: 105.8625}
+  - {city: hanoi, segment_id: HN_HBT_003, segment_name: Hai Ba Trung - Bach Mai, district: Hai Ba Trung, weather_cell_id: HN_W_HBT, lat: 20.9998, lon: 105.8497}
+  - {city: hanoi, segment_id: HN_HBT_004, segment_name: Hai Ba Trung - Giai Phong, district: Hai Ba Trung, weather_cell_id: HN_W_HBT, lat: 20.9940, lon: 105.8424}
+  - {city: hanoi, segment_id: HN_HM_001, segment_name: Hoang Mai - Giai Phong, district: Hoang Mai, weather_cell_id: HN_W_HM, lat: 20.9761, lon: 105.8410}
+  - {city: hanoi, segment_id: HN_HM_002, segment_name: Hoang Mai - Linh Dam, district: Hoang Mai, weather_cell_id: HN_W_HM, lat: 20.9640, lon: 105.8260}
+  - {city: hanoi, segment_id: HN_HM_003, segment_name: Hoang Mai - Nguyen Huu Tho, district: Hoang Mai, weather_cell_id: HN_W_HM, lat: 20.9588, lon: 105.8208}
+  - {city: hanoi, segment_id: HN_HM_004, segment_name: Hoang Mai - Tam Trinh, district: Hoang Mai, weather_cell_id: HN_W_HM, lat: 20.9862, lon: 105.8692}
+  - {city: hanoi, segment_id: HN_TH_001, segment_name: Tay Ho - Vo Chi Cong, district: Tay Ho, weather_cell_id: HN_W_TH, lat: 21.0600, lon: 105.8100}
+  - {city: hanoi, segment_id: HN_TH_002, segment_name: Tay Ho - Lac Long Quan, district: Tay Ho, weather_cell_id: HN_W_TH, lat: 21.0621, lon: 105.8195}
+  - {city: hanoi, segment_id: HN_TH_003, segment_name: Tay Ho - Au Co, district: Tay Ho, weather_cell_id: HN_W_TH, lat: 21.0645, lon: 105.8355}
+  - {city: hanoi, segment_id: HN_TH_004, segment_name: Tay Ho - Nghi Tam, district: Tay Ho, weather_cell_id: HN_W_TH, lat: 21.0524, lon: 105.8373}
+  - {city: hanoi, segment_id: HN_LB_001, segment_name: Long Bien - Nguyen Van Cu, district: Long Bien, weather_cell_id: HN_W_LB, lat: 21.0470, lon: 105.8760}
+  - {city: hanoi, segment_id: HN_LB_002, segment_name: Long Bien - Nguyen Son, district: Long Bien, weather_cell_id: HN_W_LB, lat: 21.0397, lon: 105.8847}
+  - {city: hanoi, segment_id: HN_LB_003, segment_name: Long Bien - Co Linh, district: Long Bien, weather_cell_id: HN_W_LB, lat: 21.0276, lon: 105.9002}
+  - {city: hanoi, segment_id: HN_LB_004, segment_name: Long Bien - Vinh Tuy Bridge, district: Long Bien, weather_cell_id: HN_W_LB, lat: 21.0005, lon: 105.8917}
+  - {city: hanoi, segment_id: HN_NTL_001, segment_name: Nam Tu Liem - Pham Hung, district: Nam Tu Liem, weather_cell_id: HN_W_NTL, lat: 21.0120, lon: 105.7806}
+  - {city: hanoi, segment_id: HN_NTL_002, segment_name: Nam Tu Liem - Le Duc Tho, district: Nam Tu Liem, weather_cell_id: HN_W_NTL, lat: 21.0297, lon: 105.7668}
+  - {city: hanoi, segment_id: HN_NTL_003, segment_name: Nam Tu Liem - Me Tri, district: Nam Tu Liem, weather_cell_id: HN_W_NTL, lat: 21.0062, lon: 105.7778}
+  - {city: hanoi, segment_id: HN_NTL_004, segment_name: Nam Tu Liem - Thang Long Avenue, district: Nam Tu Liem, weather_cell_id: HN_W_NTL, lat: 21.0027, lon: 105.7595}
+  - {city: hanoi, segment_id: HN_BTL_001, segment_name: Bac Tu Liem - Pham Van Dong, district: Bac Tu Liem, weather_cell_id: HN_W_BTL, lat: 21.0521, lon: 105.7852}
+  - {city: hanoi, segment_id: HN_BTL_002, segment_name: Bac Tu Liem - Ho Tung Mau, district: Bac Tu Liem, weather_cell_id: HN_W_BTL, lat: 21.0393, lon: 105.7740}
+  - {city: hanoi, segment_id: HN_BTL_003, segment_name: Bac Tu Liem - Co Nhue, district: Bac Tu Liem, weather_cell_id: HN_W_BTL, lat: 21.0598, lon: 105.7836}
+  - {city: hanoi, segment_id: HN_BTL_004, segment_name: Bac Tu Liem - Van Tien Dung, district: Bac Tu Liem, weather_cell_id: HN_W_BTL, lat: 21.0634, lon: 105.7582}
+  - {city: hanoi, segment_id: HN_HD_001, segment_name: Ha Dong - Nguyen Trai, district: Ha Dong, weather_cell_id: HN_W_HD, lat: 20.9800, lon: 105.7870}
+  - {city: hanoi, segment_id: HN_HD_002, segment_name: Ha Dong - Tran Phu, district: Ha Dong, weather_cell_id: HN_W_HD, lat: 20.9731, lon: 105.7816}
+  - {city: hanoi, segment_id: HN_HD_003, segment_name: Ha Dong - Quang Trung, district: Ha Dong, weather_cell_id: HN_W_HD, lat: 20.9690, lon: 105.7750}
+  - {city: hanoi, segment_id: HN_HD_004, segment_name: Ha Dong - To Huu, district: Ha Dong, weather_cell_id: HN_W_HD, lat: 20.9953, lon: 105.7857}
+  - {city: hanoi, segment_id: HN_RR2_001, segment_name: Ring Road 2 - Nga Tu So, district: Dong Da, weather_cell_id: HN_W_RR2, lat: 21.0022, lon: 105.8195}
+  - {city: hanoi, segment_id: HN_RR2_002, segment_name: Ring Road 2 - Vinh Tuy, district: Hai Ba Trung, weather_cell_id: HN_W_RR2, lat: 20.9990, lon: 105.8798}
+  - {city: hanoi, segment_id: HN_RR2_003, segment_name: Ring Road 2 - Lang, district: Dong Da, weather_cell_id: HN_W_RR2, lat: 21.0203, lon: 105.8062}
+  - {city: hanoi, segment_id: HN_RR3_001, segment_name: Ring Road 3 - Thanh Xuan, district: Thanh Xuan, weather_cell_id: HN_W_RR3, lat: 20.9988, lon: 105.7994}
+  - {city: hanoi, segment_id: HN_RR3_002, segment_name: Ring Road 3 - Khuat Duy Tien, district: Thanh Xuan, weather_cell_id: HN_W_RR3, lat: 21.0076, lon: 105.7888}
+  - {city: hanoi, segment_id: HN_RR3_003, segment_name: Ring Road 3 - Pham Hung, district: Cau Giay, weather_cell_id: HN_W_RR3, lat: 21.0244, lon: 105.7814}
+  - {city: hanoi, segment_id: HN_RR3_004, segment_name: Ring Road 3 - Mai Dich, district: Cau Giay, weather_cell_id: HN_W_RR3, lat: 21.0360, lon: 105.7818}
+  - {city: hanoi, segment_id: HN_VNG_001, segment_name: Vo Nguyen Giap - Noi Bai Approach, district: Soc Son, weather_cell_id: HN_W_VNG, lat: 21.1378, lon: 105.7928}
+  - {city: hanoi, segment_id: HN_VNG_002, segment_name: Vo Nguyen Giap - Nhat Tan Bridge, district: Dong Anh, weather_cell_id: HN_W_VNG, lat: 21.0905, lon: 105.8178}
+  - {city: hanoi, segment_id: HN_VNG_003, segment_name: Vo Nguyen Giap - Dong Anh, district: Dong Anh, weather_cell_id: HN_W_VNG, lat: 21.1210, lon: 105.8200}
+  - {city: hanoi, segment_id: HN_CORE_001, segment_name: Tran Duy Hung - Nguyen Chi Thanh, district: Cau Giay, weather_cell_id: HN_W_CORE, lat: 21.0160, lon: 105.8030}
+  - {city: hanoi, segment_id: HN_CORE_002, segment_name: Lang Ha - Thai Ha, district: Dong Da, weather_cell_id: HN_W_CORE, lat: 21.0130, lon: 105.8152}
+  - {city: hanoi, segment_id: HN_CORE_003, segment_name: Ton Duc Thang - Nguyen Luong Bang, district: Dong Da, weather_cell_id: HN_W_CORE, lat: 21.0189, lon: 105.8320}
+  - {city: hanoi, segment_id: HN_CORE_004, segment_name: Nguyen Khoai - Tran Khat Chan, district: Hai Ba Trung, weather_cell_id: HN_W_CORE, lat: 21.0058, lon: 105.8596}

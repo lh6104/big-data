@@ -150,11 +150,13 @@ def last_coordinate(flow: dict[str, Any], fallback: dict[str, Any]) -> tuple[flo
     return float(fallback["lat"]), float(fallback["lon"])
 
 
-def load_traffic_points(path: Path | None, city: str, offset: int, limit: int | None) -> tuple[list[dict[str, Any]], int]:
-    if path:
-        with path.open("r", encoding="utf-8") as handle:
-            payload = yaml.safe_load(handle) or {}
-        points = payload.get("points", [])
+def load_traffic_points(paths: list[Path] | None, city: str, offset: int, limit: int | None) -> tuple[list[dict[str, Any]], int]:
+    if paths:
+        points = []
+        for path in paths:
+            with path.open("r", encoding="utf-8") as handle:
+                payload = yaml.safe_load(handle) or {}
+            points.extend(payload.get("points", []))
     else:
         points = TRAFFIC_POINTS
 
@@ -357,6 +359,11 @@ def load_env_file(path: Path) -> None:
             continue
         key, value = line.split("=", 1)
         key = key.strip()
+        if key.startswith("export "):
+            key = key.removeprefix("export ").strip()
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+            LOGGER.warning("Skipping invalid env key in %s", path)
+            continue
         value = value.strip().strip('"').strip("'")
         os.environ.setdefault(key, value)
 
@@ -489,7 +496,10 @@ def run(args: argparse.Namespace) -> None:
     for env_file in args.env_file:
         load_env_file(env_file)
     sources = load_sources(args.sources)
-    traffic_points, total_traffic_points = load_traffic_points(args.traffic_points, args.city, args.offset, args.limit)
+    traffic_point_files = args.traffic_points
+    if traffic_point_files is None and Path("config/hanoi_traffic_points.yaml").exists():
+        traffic_point_files = [Path("config/hanoi_traffic_points.yaml")]
+    traffic_points, total_traffic_points = load_traffic_points(traffic_point_files, args.city, args.offset, args.limit)
     deadline = time.monotonic() + args.duration_seconds
     cycle = 0
 
@@ -527,7 +537,13 @@ def main() -> None:
     parser.add_argument("--bucket-minutes", type=int, default=5)
     parser.add_argument("--timeout", type=int, default=15)
     parser.add_argument("--once", action="store_true", help="Run one cycle only.")
-    parser.add_argument("--traffic-points", type=Path, default=Path("config/hanoi_traffic_points.yaml"))
+    parser.add_argument(
+        "--traffic-points",
+        type=Path,
+        action="append",
+        default=None,
+        help="Traffic point YAML file. Can be passed multiple times.",
+    )
     parser.add_argument("--city", default="all", help="Traffic point city filter, e.g. hanoi, hcmc, all.")
     parser.add_argument("--offset", type=int, default=0, help="Skip the first N traffic points after city filtering.")
     parser.add_argument("--limit", type=int, default=None, help="Maximum TomTom point requests per cycle.")

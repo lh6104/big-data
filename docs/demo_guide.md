@@ -72,7 +72,7 @@ http://localhost:8000/openapi.json
 
 2. Live Map
 
-   Open Live Map for Hanoi. It should render real GeoJSON segments from `/segments/geojson?city=hanoi`. The current local dataset has about 75 Hanoi segments with real geometry. If the API is unavailable, the UI marks fallback data clearly.
+   Open Live Map for Hanoi or HCMC. It renders local Gold GeoJSON segments and, in the UI, requests `/segments/geojson?city={city}&include_demo_coverage=true` to add clearly marked interpolated demo coverage lines. The current local dataset has about 75 Hanoi measured/latest Gold segments and about 72 HCMC measured/latest Gold segments from TomTom Flow Segment snapshots; the expanded map view displays about 150 Hanoi lines and about 140 HCMC lines by adding `demo_coverage_interpolated` overlays. Do not describe the overlay as live measured citywide coverage. If the API is unavailable, the UI marks unavailable data clearly.
 
 3. Alerts
 

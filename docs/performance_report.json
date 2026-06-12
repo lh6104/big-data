@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-11T20:43:06.788060+00:00",
+  "generated_at": "2026-06-12T01:24:52.317015+00:00",
   "base_url": "http://localhost:8000",
   "runs": 20,
   "endpoints": [
@@ -11,9 +11,9 @@
       "status_codes": [
         200
       ],
-      "p50_ms": 0.56,
-      "p95_ms": 2.05,
-      "avg_ms": 1.65,
+      "p50_ms": 0.5,
+      "p95_ms": 0.88,
+      "avg_ms": 0.63,
       "payload_size_kb": 0.1,
       "error": null
     },
@@ -25,9 +25,9 @@
       "status_codes": [
         200
       ],
-      "p50_ms": 22.28,
-      "p95_ms": 49.3,
-      "avg_ms": 38.39,
+      "p50_ms": 12.37,
+      "p95_ms": 118.64,
+      "avg_ms": 33.03,
       "payload_size_kb": 0.26,
       "error": null
     },
@@ -39,10 +39,38 @@
       "status_codes": [
         200
       ],
-      "p50_ms": 37.39,
-      "p95_ms": 77.86,
-      "avg_ms": 44.49,
-      "payload_size_kb": 476.4,
+      "p50_ms": 37.36,
+      "p95_ms": 90.19,
+      "avg_ms": 46.92,
+      "payload_size_kb": 491.89,
+      "error": null
+    },
+    {
+      "endpoint": "/segments/geojson?city=hcmc",
+      "runs": 20,
+      "success_count": 20,
+      "success_rate": 1.0,
+      "status_codes": [
+        200
+      ],
+      "p50_ms": 33.69,
+      "p95_ms": 131.99,
+      "avg_ms": 59.17,
+      "payload_size_kb": 496.02,
+      "error": null
+    },
+    {
+      "endpoint": "/segments/geojson?city=hcmc&include_demo_coverage=true",
+      "runs": 20,
+      "success_count": 20,
+      "success_rate": 1.0,
+      "status_codes": [
+        200
+      ],
+      "p50_ms": 37.18,
+      "p95_ms": 82.69,
+      "avg_ms": 43.93,
+      "payload_size_kb": 520.13,
       "error": null
     },
     {
@@ -53,10 +81,10 @@
       "status_codes": [
         200
       ],
-      "p50_ms": 26.27,
-      "p95_ms": 31.07,
-      "avg_ms": 25.9,
-      "payload_size_kb": 8.93,
+      "p50_ms": 11.19,
+      "p95_ms": 25.27,
+      "avg_ms": 14.91,
+      "payload_size_kb": 8.96,
       "error": null
     },
     {
@@ -67,9 +95,9 @@
       "status_codes": [
         200
       ],
-      "p50_ms": 28.14,
-      "p95_ms": 35.75,
-      "avg_ms": 28.51,
+      "p50_ms": 17.45,
+      "p95_ms": 23.03,
+      "avg_ms": 18.16,
       "payload_size_kb": 0.91,
       "error": null
     },
@@ -81,9 +109,9 @@
       "status_codes": [
         200
       ],
-      "p50_ms": 26.28,
-      "p95_ms": 30.57,
-      "avg_ms": 23.76,
+      "p50_ms": 16.76,
+      "p95_ms": 23.34,
+      "avg_ms": 17.77,
       "payload_size_kb": 0.91,
       "error": null
     },
@@ -95,10 +123,10 @@
       "status_codes": [
         200
       ],
-      "p50_ms": 1200.15,
-      "p95_ms": 1296.76,
-      "avg_ms": 1181.9,
-      "payload_size_kb": 47.57,
+      "p50_ms": 1.11,
+      "p95_ms": 1.86,
+      "avg_ms": 1.15,
+      "payload_size_kb": 84.32,
       "error": null
     },
     {
@@ -109,9 +137,9 @@
       "status_codes": [
         200
       ],
-      "p50_ms": 3.93,
-      "p95_ms": 4.85,
-      "avg_ms": 4.24,
+      "p50_ms": 4.46,
+      "p95_ms": 5.62,
+      "avg_ms": 4.67,
       "payload_size_kb": 2.27,
       "error": null
     },
@@ -123,17 +151,39 @@
       "status_codes": [
         200
       ],
-      "p50_ms": 357.4,
-      "p95_ms": 409.33,
-      "avg_ms": 367.89,
-      "payload_size_kb": 1.26,
+      "p50_ms": 360.28,
+      "p95_ms": 410.48,
+      "avg_ms": 362.73,
+      "payload_size_kb": 1.49,
       "error": null
     }
   ],
   "extra_metrics": {
-    "api_memory_after_model_load": "NOT MEASURED",
-    "model_load_time": "NOT MEASURED",
-    "model_inference_time": "NOT MEASURED",
-    "frontend_build_time": "NOT MEASURED"
+    "model_runtime": {
+      "status": "measured_in_benchmark_process",
+      "model_load_time_ms": {
+        "15m": 594.58,
+        "60m": 27.25
+      },
+      "model_inference_time_ms": {
+        "15m": 163.57,
+        "60m": 20.62
+      }
+    },
+    "api_memory_after_model_load": {
+      "status": "measured_from_procfs",
+      "total_rss_mb": 123.11,
+      "processes": [
+        {
+          "pid": 233117,
+          "rss_mb": 123.11,
+          "cmd": "/home/longha/miniforge3/envs/traffic/bin/python3.11 /home/longha/miniforge3/envs/traffic/bin/uvicorn api.main:app --reload --host 127.0.0.1 --port 8000 "
+        }
+      ]
+    },
+    "frontend_build": {
+      "status": "PASS",
+      "detail": "npm run build completed in 7.05s"
+    }
   }
 }

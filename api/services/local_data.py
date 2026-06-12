@@ -8,7 +8,6 @@ already exist locally.
 from __future__ import annotations
 
 import os
-from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
@@ -32,34 +31,52 @@ def _first_existing(paths: Iterable[Path]) -> Path:
 
 
 def _read_table(base: Path) -> pd.DataFrame:
-    csv_path = base.with_suffix(".csv")
-    parquet_path = base.with_suffix(".parquet")
-    path = _first_existing([csv_path, parquet_path])
+    path = _table_path(base)
     if path.suffix == ".parquet":
         return pd.read_parquet(path)
     return pd.read_csv(path)
 
 
-@lru_cache(maxsize=8)
+def _table_path(base: Path) -> Path:
+    csv_path = base.with_suffix(".csv")
+    parquet_path = base.with_suffix(".parquet")
+    return _first_existing([csv_path, parquet_path])
+
+
+_TABLE_CACHE: dict[tuple[str, int], pd.DataFrame] = {}
+
+
+def _read_table_cached(base: Path) -> pd.DataFrame:
+    path = _table_path(base)
+    cache_key = (str(path), path.stat().st_mtime_ns)
+    cached = _TABLE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached.copy()
+    # Drop older cached versions of the same file after a local pipeline rebuild.
+    for key in list(_TABLE_CACHE):
+        if key[0] == str(path):
+            _TABLE_CACHE.pop(key, None)
+    df = _read_table(base)
+    _TABLE_CACHE[cache_key] = df
+    return df.copy()
+
+
 def traffic_features() -> pd.DataFrame:
-    return _read_table(DATA_DIR / "gold" / "cleaned_traffic_features")
+    return _read_table_cached(DATA_DIR / "gold" / "cleaned_traffic_features")
 
 
-@lru_cache(maxsize=8)
 def traffic_cleaned() -> pd.DataFrame:
-    return _read_table(DATA_DIR / "silver" / "traffic_cleaned")
+    return _read_table_cached(DATA_DIR / "silver" / "traffic_cleaned")
 
 
-@lru_cache(maxsize=8)
 def train_features(horizon: int = 15) -> pd.DataFrame:
     if horizon not in {15, 60}:
         horizon = 15
-    return _read_table(DATA_DIR / "gold" / f"train_features_{horizon}m")
+    return _read_table_cached(DATA_DIR / "gold" / f"train_features_{horizon}m")
 
 
-@lru_cache(maxsize=8)
 def news_events() -> pd.DataFrame:
-    return _read_table(DATA_DIR / "silver" / "news_events_normalized")
+    return _read_table_cached(DATA_DIR / "silver" / "news_events_normalized")
 
 
 def normalize_city(city: str | None) -> str | None:

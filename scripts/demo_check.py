@@ -40,7 +40,14 @@ def run_endpoint_checks(base_url: str) -> list[dict[str, str]]:
     specs = [
         ("API health", "/health", lambda payload: "status" in payload, "200 OK"),
         ("Dashboard summary", "/dashboard/summary?city=hanoi", lambda payload: payload.get("monitored_segments", 0) >= 0, "summary returned"),
-        ("GeoJSON features", "/segments/geojson?city=hanoi", lambda payload: len(payload.get("features", [])) > 0, "features > 0"),
+        ("GeoJSON Hanoi real", "/segments/geojson?city=hanoi", lambda payload: len(payload.get("features", [])) >= 50, "hanoi real features >= 50"),
+        ("GeoJSON HCMC real", "/segments/geojson?city=hcmc", lambda payload: len(payload.get("features", [])) >= 50, "hcmc real features >= 50"),
+        (
+            "GeoJSON HCMC expanded",
+            "/segments/geojson?city=hcmc&include_demo_coverage=true",
+            lambda payload: len(payload.get("features", [])) >= 120,
+            "hcmc expanded features >= 120",
+        ),
         ("Traffic segments", "/traffic/segments?city=hanoi", lambda payload: isinstance(payload, list) and len(payload) > 0, "segments > 0"),
         ("Forecast 15m", "/traffic/predict/HN_005?horizon=15m", lambda payload: "predicted_speed" in payload, "forecast returned"),
         ("Forecast 60m", "/traffic/predict/HN_005?horizon=60m", lambda payload: "predicted_speed" in payload, "forecast returned"),
@@ -51,7 +58,7 @@ def run_endpoint_checks(base_url: str) -> list[dict[str, str]]:
     for name, endpoint, validator, detail in specs:
         code, payload, error, elapsed = fetch_json(base_url, endpoint)
         if code and 200 <= code < 400 and payload is not None and validator(payload):
-            if name == "GeoJSON features":
+            if name.startswith("GeoJSON"):
                 detail = f"{len(payload.get('features', []))} features"
             elif name.startswith("Forecast"):
                 detail = (
@@ -66,14 +73,19 @@ def run_endpoint_checks(base_url: str) -> list[dict[str, str]]:
 
 
 def run_frontend_build() -> dict[str, str]:
-    bun = shutil.which("bun")
-    if not bun:
-        return item("Frontend build", "SKIPPED", "bun is not installed")
+    command = [shutil.which("bun") or "", "run", "build"]
+    label = "bun run build"
+    if not command[0]:
+        npm = shutil.which("npm")
+        if not npm:
+            return item("Frontend build", "SKIPPED", "bun and npm are not installed")
+        command = [npm, "run", "build"]
+        label = "npm run build"
     started = time.perf_counter()
-    proc = subprocess.run([bun, "run", "build"], cwd=PROJECT_ROOT / "frontend", text=True, capture_output=True)
+    proc = subprocess.run(command, cwd=PROJECT_ROOT / "frontend", text=True, capture_output=True)
     elapsed = round(time.perf_counter() - started, 2)
     if proc.returncode == 0:
-        return item("Frontend build", "PASS", f"bun run build completed in {elapsed}s")
+        return item("Frontend build", "PASS", f"{label} completed in {elapsed}s")
     message = (proc.stderr or proc.stdout).strip().splitlines()[-1:] or ["build failed"]
     return item("Frontend build", "FAIL", message[0][:240])
 

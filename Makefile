@@ -1,4 +1,4 @@
-.PHONY: help up down logs restart clean demo test seed health gold gold-docker train-data news-bronze news-events ingest-raw-once ingest-raw-10m repair-env docker-build docker-test docker-api docker-shell docker-pipeline demo-check benchmark-demo streaming-mini-demo
+.PHONY: help up down logs restart clean demo test seed health gold gold-docker train-data news-bronze news-events ingest-raw-once ingest-raw-10m ingest-live-map-coverage repair-env docker-build docker-test docker-api docker-shell docker-pipeline demo-check benchmark-demo streaming-mini-demo
 
 COMPOSE_FILE := docker-compose.yml
 COMPOSE_CMD := docker compose -f $(COMPOSE_FILE)
@@ -26,6 +26,7 @@ help:
 	@echo "  make gold-docker - Build local Silver/Gold train data in Docker"
 	@echo "  make ingest-raw-once - Fetch one live raw-data cycle into raw/"
 	@echo "  make ingest-raw-10m  - Fetch live raw data into raw/ for 10 minutes"
+	@echo "  make ingest-live-map-coverage - Fetch TomTom coverage points for Hanoi + HCMC, then run make gold"
 	@echo "  make seed        - Seed demo data into Kafka"
 	@echo "  make test        - Run test suite"
 	@echo "  make health      - Check stack health"
@@ -97,6 +98,12 @@ ingest-raw-10m:
 	@echo "Ingesting live data into $(RAW_DIR) for $(INGEST_SECONDS) seconds..."
 	$(PYTHON) scripts/ingest_raw_sources.py --raw-dir $(RAW_DIR) --duration-seconds $(INGEST_SECONDS) --poll-seconds $(INGEST_POLL_SECONDS)
 	@echo "✓ Raw ingest run complete"
+
+ingest-live-map-coverage:
+	@echo "Ingesting TomTom live map coverage points for Hanoi + HCMC..."
+	$(PYTHON) scripts/ingest_raw_sources.py --env-file .env.local --once --skip-weather --skip-events --traffic-points config/hanoi_traffic_points.yaml --traffic-points config/hcmc_traffic_points.yaml --city all
+	@$(MAKE) gold
+	@echo "✓ Live map coverage Gold data rebuilt from latest TomTom raw snapshots"
 
 news-bronze:
 	@echo "Building Bronze news evidence layer..."

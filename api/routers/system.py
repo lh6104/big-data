@@ -110,11 +110,26 @@ def _model_status_summary() -> dict[str, Any]:
 
 def _performance_status() -> dict[str, Any]:
     report = _read_json(PROJECT_ROOT / "docs" / "performance_report.json")
+    extra = report.get("extra_metrics", {}) if report else {}
+    model_runtime = extra.get("model_runtime", {}) if isinstance(extra, dict) else {}
+    api_memory = extra.get("api_memory_after_model_load", {}) if isinstance(extra, dict) else {}
+    frontend_build = extra.get("frontend_build", {}) if isinstance(extra, dict) else {}
+    if not isinstance(model_runtime, dict):
+        model_runtime = {}
+    if not isinstance(api_memory, dict):
+        api_memory = {}
+    if not isinstance(frontend_build, dict):
+        frontend_build = {}
     return {
         "last_benchmark_at": report.get("generated_at") if report else None,
         "forecast_p95_ms": _endpoint_p95(report, "/traffic/predict/HN_005?horizon=15m"),
         "dashboard_summary_p95_ms": _endpoint_p95(report, "/dashboard/summary"),
         "predicted_hotspots_p95_ms": _endpoint_p95(report, "/hotspots/predicted"),
+        "model_load_time_ms": model_runtime.get("model_load_time_ms"),
+        "model_inference_time_ms": model_runtime.get("model_inference_time_ms"),
+        "api_memory_after_model_load_mb": api_memory.get("total_rss_mb"),
+        "frontend_build_status": frontend_build.get("status"),
+        "frontend_build_detail": frontend_build.get("detail"),
         "status": "measured" if report else "not_measured",
     }
 

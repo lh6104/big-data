@@ -4,7 +4,9 @@ This project is ready for a capstone/demo walkthrough, but it is not a productio
 
 ## Data Coverage
 
-- Hanoi traffic coverage is currently about 75 segments with real geometry.
+- Latest local Gold traffic coverage is currently about 75 Hanoi segments and about 72 HCMC segments from TomTom Flow Segment snapshots, with real geometry when TomTom returns coordinates.
+- Live Map can request `include_demo_coverage=true` to display interpolated demo coverage lines. These lines improve visual city coverage for demo navigation, but they are explicitly marked as `demo_coverage_interpolated` and must not be described as live measured road segments.
+- With the demo overlay enabled, the current Live Map displays about 150 Hanoi lines and about 140 HCMC lines; only the `local_gold` subset is backed by local Gold/TomTom traffic measurements.
 - The dataset is not full-city coverage and does not cover every road, ward, or district in Hanoi.
 - The local data is built from controlled crawls and generated Silver/Gold artifacts, not a continuously operating citywide feed.
 

@@ -455,32 +455,17 @@ def predict_from_features(horizon: str | int, features: dict[str, Any]) -> Model
     )
 
 
-def predict_for_segment(segment_id: str, horizon: str | int) -> ModelPrediction:
-    normalized = normalize_horizon(horizon)
-    try:
-        artifact = load_model(normalized)
-        estimator = estimator_from_artifact(artifact)
-        feature_columns = feature_columns_for_model(artifact, normalized)
-    except ModelUnavailableError:
-        raise
-
-    latest = latest_by_segment(traffic_features())
-    rows = latest[latest["segment_id"].astype(str) == str(segment_id)]
-    if rows.empty:
-        return _fallback_from_examples(segment_id, normalized, f"No local gold row found for segment '{segment_id}'.")
-
-    row = rows.sort_values("timestamp").iloc[-1]
+def _predict_from_gold_row(
+    row: pd.Series,
+    normalized: str,
+    artifact: Any,
+    estimator: Any,
+    feature_columns: list[str],
+) -> ModelPrediction:
     frame, missing = _feature_frame(row, feature_columns)
-    try:
-        prediction = float(estimator.predict(frame)[0])
-    except Exception as exc:
-        return _fallback_from_examples(
-            segment_id,
-            normalized,
-            f"Local gold row is not compatible with model schema; used bundled inference example. Detail: {exc}",
-        )
-
+    prediction = float(estimator.predict(frame)[0])
     latest_timestamp = row.get("timestamp", row.get("time_bucket"))
+    segment_id = str(row.get("segment_id", "unknown"))
     return ModelPrediction(
         segment_id=segment_id,
         horizon=normalized,
@@ -501,6 +486,108 @@ def predict_for_segment(segment_id: str, horizon: str | int) -> ModelPrediction:
         latest_timestamp=pd.to_datetime(latest_timestamp).isoformat() if pd.notna(latest_timestamp) else None,
         warning="Some required model features were filled for demo inference." if missing else None,
     )
+
+
+def predict_for_feature_row(row: pd.Series, horizon: str | int) -> ModelPrediction:
+    """Predict from an already selected Gold feature row.
+
+    This avoids reloading and re-filtering the full local Gold dataset for
+    per-segment loops such as prototype predicted hotspot scoring.
+    """
+    normalized = normalize_horizon(horizon)
+    artifact = load_model(normalized)
+    estimator = estimator_from_artifact(artifact)
+    feature_columns = feature_columns_for_model(artifact, normalized)
+    try:
+        return _predict_from_gold_row(row, normalized, artifact, estimator, feature_columns)
+    except Exception as exc:
+        segment_id = str(row.get("segment_id", "unknown"))
+        return _fallback_from_examples(
+            segment_id,
+            normalized,
+            f"Local gold row is not compatible with model schema; used bundled inference example. Detail: {exc}",
+        )
+
+
+def predict_for_feature_rows(rows: pd.DataFrame, horizon: str | int) -> list[ModelPrediction]:
+    """Predict for multiple already selected Gold feature rows in one estimator call."""
+    if rows.empty:
+        return []
+    normalized = normalize_horizon(horizon)
+    artifact = load_model(normalized)
+    estimator = estimator_from_artifact(artifact)
+    feature_columns = feature_columns_for_model(artifact, normalized)
+
+    frames: list[pd.DataFrame] = []
+    missing_by_row: list[list[str]] = []
+    source_rows: list[pd.Series] = []
+    for _, row in rows.iterrows():
+        frame, missing = _feature_frame(row, feature_columns)
+        frames.append(frame)
+        missing_by_row.append(missing)
+        source_rows.append(row)
+
+    if not frames:
+        return []
+    feature_frame = pd.concat(frames, ignore_index=True)
+    predictions = estimator.predict(feature_frame[feature_columns])
+    output: list[ModelPrediction] = []
+    for row, missing, prediction in zip(source_rows, missing_by_row, predictions):
+        latest_timestamp = row.get("timestamp", row.get("time_bucket"))
+        output.append(
+            ModelPrediction(
+                segment_id=str(row.get("segment_id", "unknown")),
+                horizon=normalized,
+                predicted_speed=round(float(prediction), 3),
+                current_speed=round(float(row["currentSpeed"]), 3)
+                if "currentSpeed" in row and pd.notna(row["currentSpeed"])
+                else None,
+                current_jam_factor=round(float(row["jamFactor"]), 3)
+                if "jamFactor" in row and pd.notna(row["jamFactor"])
+                else None,
+                model_name=model_name_from_artifact(artifact),
+                model_artifact=artifact_name(normalized),
+                model_source=str(model_dir().relative_to(PROJECT_ROOT))
+                if model_dir().is_relative_to(PROJECT_ROOT)
+                else str(model_dir()),
+                data_source="gold_local",
+                input_source="latest_segment_features_batch",
+                is_fallback=False,
+                required_feature_count=len(feature_columns),
+                available_feature_count=len(feature_columns) - len(missing),
+                filled_feature_count=len(missing),
+                feature_fill_strategy="missing_features_filled_with_zero_or_unknown" if missing else None,
+                missing_features=missing[:50],
+                latest_timestamp=pd.to_datetime(latest_timestamp).isoformat() if pd.notna(latest_timestamp) else None,
+                warning="Some required model features were filled for demo inference." if missing else None,
+            )
+        )
+    return output
+
+
+def predict_for_segment(segment_id: str, horizon: str | int) -> ModelPrediction:
+    normalized = normalize_horizon(horizon)
+    try:
+        artifact = load_model(normalized)
+        estimator = estimator_from_artifact(artifact)
+        feature_columns = feature_columns_for_model(artifact, normalized)
+    except ModelUnavailableError:
+        raise
+
+    latest = latest_by_segment(traffic_features())
+    rows = latest[latest["segment_id"].astype(str) == str(segment_id)]
+    if rows.empty:
+        return _fallback_from_examples(segment_id, normalized, f"No local gold row found for segment '{segment_id}'.")
+
+    row = rows.sort_values("timestamp").iloc[-1]
+    try:
+        return _predict_from_gold_row(row, normalized, artifact, estimator, feature_columns)
+    except Exception as exc:
+        return _fallback_from_examples(
+            segment_id,
+            normalized,
+            f"Local gold row is not compatible with model schema; used bundled inference example. Detail: {exc}",
+        )
 
 
 def model_status(load_models: bool = False) -> dict[str, Any]:

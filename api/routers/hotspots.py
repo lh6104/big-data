@@ -6,16 +6,19 @@ from typing import Any, List, Optional
 from datetime import datetime
 from functools import lru_cache
 import logging
+import time
 from pathlib import Path
 
 import yaml
 
 from api.services.local_data import DataUnavailableError, PROJECT_ROOT, latest_by_segment, normalize_city, traffic_features
-from api.services.model_inference import ModelUnavailableError, normalize_horizon, predict_for_segment
+from api.services.model_inference import ModelUnavailableError, normalize_horizon, predict_for_feature_row, predict_for_feature_rows
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+PREDICTED_HOTSPOT_CACHE_TTL_SECONDS = 30.0
+_PREDICTED_HOTSPOT_CACHE: dict[tuple[str, str, bool], tuple[float, list["PredictedHotspot"]]] = {}
 
 
 class Hotspot(BaseModel):
@@ -93,7 +96,7 @@ def risk_config() -> dict[str, Any]:
 
 
 def _float_attr(row: Any, name: str, default: float = 0.0) -> float:
-    value = getattr(row, name, default)
+    value = row.get(name, default) if hasattr(row, "get") else getattr(row, name, default)
     try:
         if value != value:
             return default
@@ -103,7 +106,7 @@ def _float_attr(row: Any, name: str, default: float = 0.0) -> float:
 
 
 def _bool_attr(row: Any, name: str) -> bool:
-    value = getattr(row, name, False)
+    value = row.get(name, False) if hasattr(row, "get") else getattr(row, name, False)
     if isinstance(value, str):
         return value.strip().lower() in {"true", "1", "yes"}
     return bool(value)
@@ -193,8 +196,8 @@ def _score_prediction(row: Any, prediction: Any) -> dict[str, Any]:
     context.update(
         {
             "segment": (
-                f"road_class={getattr(row, 'road_class_encoded', 'unknown')}, "
-                f"district={getattr(row, 'district', 'unknown')}"
+                f"road_class={row.get('road_class_encoded', 'unknown') if hasattr(row, 'get') else getattr(row, 'road_class_encoded', 'unknown')}, "
+                f"district={row.get('district', 'unknown') if hasattr(row, 'get') else getattr(row, 'district', 'unknown')}"
             ),
             "forecast": (
                 f"horizon={prediction.horizon}, model={prediction.model_name}, "
@@ -276,6 +279,7 @@ def get_hotspots(
 def get_predicted_hotspots(
     city: str = Query("hanoi", description="Filter by city"),
     horizon: str = Query("15m", description="Forecast horizon (15m or 60m)"),
+    include_geometry: bool = Query(False, description="Include raw segment geometry in each predicted hotspot response"),
 ):
     """Get prototype explainable risk scores from local Gold data and forecast output.
 
@@ -288,6 +292,12 @@ def get_predicted_hotspots(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    cache_key = (city, horizon, include_geometry)
+    cached = _PREDICTED_HOTSPOT_CACHE.get(cache_key)
+    now = time.monotonic()
+    if cached and now - cached[0] <= PREDICTED_HOTSPOT_CACHE_TTL_SECONDS:
+        return cached[1]
+
     try:
         latest = latest_by_segment(traffic_features(), city)
     except DataUnavailableError as exc:
@@ -297,10 +307,18 @@ def get_predicted_hotspots(
         return []
 
     hotspots: list[PredictedHotspot] = []
-    for row in latest.itertuples(index=False):
-        segment_id = str(row.segment_id)
+    try:
+        predictions = {prediction.segment_id: prediction for prediction in predict_for_feature_rows(latest, horizon)}
+    except (ModelUnavailableError, DataUnavailableError):
+        raise
+    except Exception as exc:  # pragma: no cover - fallback keeps prototype endpoint demoable
+        logger.warning("Batch predicted hotspot inference failed, falling back to per-row inference: %s", exc)
+        predictions = {}
+
+    for _, row in latest.iterrows():
+        segment_id = str(row.get("segment_id"))
         try:
-            prediction = predict_for_segment(segment_id, horizon)
+            prediction = predictions.get(segment_id) or predict_for_feature_row(row, horizon)
         except (ModelUnavailableError, DataUnavailableError) as exc:
             logger.warning("Skipping predicted hotspot for %s: %s", segment_id, exc)
             continue
@@ -315,15 +333,17 @@ def get_predicted_hotspots(
         if risk["risk_level"] == "low":
             continue
 
-        geometry = getattr(row, "geometry", None)
-        if geometry != geometry:  # NaN guard without importing pandas here.
-            geometry = None
+        geometry = None
+        if include_geometry:
+            geometry = row.get("geometry")
+            if geometry != geometry:  # NaN guard without importing pandas here.
+                geometry = None
 
         hotspots.append(
             PredictedHotspot(
                 segment_id=segment_id,
-                road_name=str(getattr(row, "segment_name", segment_id) or segment_id),
-                city=city or str(getattr(row, "city", "")),
+                road_name=str(row.get("segment_name", segment_id) or segment_id),
+                city=city or str(row.get("city", "")),
                 current_speed=round(risk["current_speed"], 3),
                 predicted_speed=round(risk["predicted_speed"], 3),
                 free_flow_speed=round(risk["free_flow_speed"], 3),
@@ -351,4 +371,6 @@ def get_predicted_hotspots(
             )
         )
 
-    return sorted(hotspots, key=lambda item: (-item.risk_score, item.predicted_speed))
+    result = sorted(hotspots, key=lambda item: (-item.risk_score, item.predicted_speed))
+    _PREDICTED_HOTSPOT_CACHE[cache_key] = (now, result)
+    return result

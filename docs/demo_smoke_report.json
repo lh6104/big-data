@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-11T20:42:35.597874+00:00",
+  "generated_at": "2026-06-12T01:24:51.113866+00:00",
   "base_url": "http://localhost:8000",
   "checks": [
     {
@@ -13,9 +13,19 @@
       "detail": "summary returned"
     },
     {
-      "check": "GeoJSON features",
+      "check": "GeoJSON Hanoi real",
       "status": "PASS",
       "detail": "75 features"
+    },
+    {
+      "check": "GeoJSON HCMC real",
+      "status": "PASS",
+      "detail": "72 features"
+    },
+    {
+      "check": "GeoJSON HCMC expanded",
+      "status": "PASS",
+      "detail": "140 features"
     },
     {
       "check": "Traffic segments",
@@ -25,12 +35,12 @@
     {
       "check": "Forecast 15m",
       "status": "PASS",
-      "detail": "model=lightgbm_main, coverage=52/67, latency_ms=45.0"
+      "detail": "model=lightgbm_main, coverage=52/67, latency_ms=1412.8"
     },
     {
       "check": "Forecast 60m",
       "status": "PASS",
-      "detail": "model=lightgbm_main, coverage=52/67, latency_ms=22.4"
+      "detail": "model=lightgbm_main, coverage=52/67, latency_ms=128.4"
     },
     {
       "check": "Predicted hotspots",
@@ -49,8 +59,8 @@
     },
     {
       "check": "Frontend build",
-      "status": "SKIPPED",
-      "detail": "bun is not installed"
+      "status": "PASS",
+      "detail": "npm run build completed in 7.05s"
     }
   ],
   "overall_status": "PASS"

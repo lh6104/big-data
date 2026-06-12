@@ -22,6 +22,10 @@ type Segment = {
   weather: { condition: string; temp: number; visibilityKm: number };
   updatedAt: string;
   incident?: string;
+  source?: string;
+  provider?: string;
+  coverageSource?: string;
+  isDemoCoverage?: boolean;
 };
 
 type Hotspot = {
@@ -42,10 +46,17 @@ type SegmentFeatureCollection = {
     geometry: { type: "LineString"; coordinates: [number, number][] };
     properties: {
       segment_id: string;
+      segment_name?: string;
       jam_factor: number;
       current_speed: number;
       free_flow_speed: number;
       city: "hanoi" | "hcmc";
+      coverage_source?: "local_gold" | "demo_coverage_interpolated";
+      is_demo_coverage?: boolean;
+      source?: string;
+      provider?: string;
+      latest_timestamp?: string;
+      confidence?: number;
     };
   }>;
 };
@@ -126,7 +137,7 @@ export function LiveMapView({
   const [mounted, setMounted] = useState(false);
   const apiCity = city === "Hanoi" ? "hanoi" : "hcmc";
   const { data: segmentGeojson, error: segmentError, isLoading: segmentsLoading, mutate: reloadSegments } =
-    useSWR<SegmentFeatureCollection>(`/segments/geojson?city=${apiCity}&refresh=${refreshKey}`, apiGet, {
+    useSWR<SegmentFeatureCollection>(`/segments/geojson?city=${apiCity}&include_demo_coverage=true&refresh=${refreshKey}`, apiGet, {
       revalidateOnFocus: false,
       shouldRetryOnError: false,
     });
@@ -154,16 +165,20 @@ export function LiveMapView({
     if (!segmentGeojson?.features?.length) return [];
     return segmentGeojson.features.map((feature) => ({
       segment_id: feature.properties.segment_id,
-      name: feature.properties.segment_id,
+      name: feature.properties.segment_name ?? feature.properties.segment_id,
       road_type: "Arterial",
       geometry: feature.geometry,
       currentSpeed: feature.properties.current_speed,
       freeFlowSpeed: feature.properties.free_flow_speed,
       jamFactor: feature.properties.jam_factor,
-      confidence: 1,
+      confidence: feature.properties.confidence ?? 1,
       city,
       weather: { condition: "Local data", temp: 0, visibilityKm: 0 },
-      updatedAt: new Date().toISOString(),
+      updatedAt: feature.properties.latest_timestamp ?? new Date().toISOString(),
+      source: feature.properties.source,
+      provider: feature.properties.provider,
+      coverageSource: feature.properties.coverage_source,
+      isDemoCoverage: feature.properties.is_demo_coverage,
     }));
   }, [segmentGeojson, city]);
 
@@ -191,7 +206,13 @@ export function LiveMapView({
     : !hotspotsLoading && hotspotData && apiHotspots.length === 0
       ? "No hotspots returned for this city."
       : "";
-  const dataSourceLabel = segmentError || hotspotError ? "Unavailable" : "API";
+  const localTomTomCount = apiSegments.filter((segment) => !segment.isDemoCoverage && segment.source === "tomtom").length;
+  const dataSourceLabel = segmentError || hotspotError
+    ? "Unavailable"
+    : localTomTomCount > 0
+      ? `TomTom realtime (${localTomTomCount})`
+      : "API";
+  const demoCoverageCount = apiSegments.filter((segment) => segment.segment_id.includes("_DEMO_")).length;
 
   const filteredSegments = useMemo(() => {
     return apiSegments.filter((s) => s.city === city)
@@ -262,6 +283,13 @@ export function LiveMapView({
             {[segmentStatusMessage, hotspotStatusMessage].filter(Boolean).join(" ")}
           </div>
         )}
+        {!segmentError && demoCoverageCount > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-secondary px-3 py-2 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">{filteredSegments.length} displayed segments</span>
+            <span>{demoCoverageCount} interpolated demo coverage lines</span>
+            <span>Solid lines are TomTom/local Gold data; faint lines are coverage overlay.</span>
+          </div>
+        )}
 
         <div className="relative h-[560px] overflow-hidden rounded-2xl">
           {mounted ? (
@@ -289,7 +317,12 @@ export function LiveMapView({
                     />
                     <Polyline
                       positions={positions}
-                      pathOptions={{ color, weight: isSelected ? 7 : 4, opacity: 0.9 }}
+                      pathOptions={{
+                        color,
+                        weight: isSelected ? 7 : s.segment_id.includes("_DEMO_") ? 2 : 4,
+                        opacity: s.segment_id.includes("_DEMO_") ? 0.45 : 0.9,
+                        dashArray: s.segment_id.includes("_DEMO_") ? "6 6" : undefined,
+                      }}
                       eventHandlers={{ click: () => setSelected(s) }}
                     />
                   </Fragment>
@@ -375,13 +408,6 @@ function SegmentDetail({
   onViewForecast: (id: string) => void;
 }) {
   const updated = new Date(segment.updatedAt);
-  const [secondsAgo, setSecondsAgo] = useState(0);
-  useEffect(() => {
-    setSecondsAgo(0);
-    const id = setInterval(() => setSecondsAgo((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, [segment.segment_id]);
-
   const status = congestionOf(segment);
   const statusStyles: Record<typeof status, string> = {
     Free: "bg-green-100 text-green-700",
@@ -404,7 +430,7 @@ function SegmentDetail({
             <span className="text-[11px] text-muted-foreground">{segment.road_type}</span>
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground">
-            {segment.segment_id} · Updated {secondsAgo}s ago
+            {segment.segment_id} · {segment.isDemoCoverage ? "Demo overlay" : segment.provider ?? segment.source ?? "local data"}
           </p>
         </div>
         <button
@@ -461,7 +487,7 @@ function SegmentDetail({
       <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
         <span>Last update</span>
         <span className="font-semibold text-foreground">
-          {updated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          {Number.isNaN(updated.getTime()) ? "n/a" : updated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
         </span>
       </div>
 

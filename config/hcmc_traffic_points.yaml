@@ -1,0 +1,65 @@
+# HCMC traffic monitoring points for bounded TomTom Flow Segment sampling.
+# These are request anchor points for real TomTom Flow Segment API calls.
+points:
+  - {city: hcmc, segment_id: HCMC_D1_001, segment_name: District 1 - Le Loi, district: District 1, weather_cell_id: HCMC_W_D1, lat: 10.7757, lon: 106.7004}
+  - {city: hcmc, segment_id: HCMC_D1_002, segment_name: District 1 - Nguyen Hue, district: District 1, weather_cell_id: HCMC_W_D1, lat: 10.7751, lon: 106.7038}
+  - {city: hcmc, segment_id: HCMC_D1_003, segment_name: District 1 - Hai Ba Trung, district: District 1, weather_cell_id: HCMC_W_D1, lat: 10.7827, lon: 106.7018}
+  - {city: hcmc, segment_id: HCMC_D1_004, segment_name: District 1 - Nam Ky Khoi Nghia, district: District 1, weather_cell_id: HCMC_W_D1, lat: 10.7794, lon: 106.6952}
+  - {city: hcmc, segment_id: HCMC_D1_005, segment_name: District 1 - Ton Duc Thang, district: District 1, weather_cell_id: HCMC_W_D1, lat: 10.7810, lon: 106.7073}
+  - {city: hcmc, segment_id: HCMC_D3_001, segment_name: District 3 - Cach Mang Thang Tam, district: District 3, weather_cell_id: HCMC_W_D3, lat: 10.7890, lon: 106.6820}
+  - {city: hcmc, segment_id: HCMC_D3_002, segment_name: District 3 - Vo Thi Sau, district: District 3, weather_cell_id: HCMC_W_D3, lat: 10.7865, lon: 106.6896}
+  - {city: hcmc, segment_id: HCMC_D3_003, segment_name: District 3 - Nguyen Thi Minh Khai, district: District 3, weather_cell_id: HCMC_W_D3, lat: 10.7828, lon: 106.6868}
+  - {city: hcmc, segment_id: HCMC_D3_004, segment_name: District 3 - Ly Chinh Thang, district: District 3, weather_cell_id: HCMC_W_D3, lat: 10.7915, lon: 106.6844}
+  - {city: hcmc, segment_id: HCMC_D3_005, segment_name: District 3 - Dien Bien Phu West, district: District 3, weather_cell_id: HCMC_W_D3, lat: 10.7904, lon: 106.6975}
+  - {city: hcmc, segment_id: HCMC_BT_001, segment_name: Binh Thanh - Dien Bien Phu, district: Binh Thanh, weather_cell_id: HCMC_W_BT, lat: 10.8015, lon: 106.7148}
+  - {city: hcmc, segment_id: HCMC_BT_002, segment_name: Binh Thanh - Xo Viet Nghe Tinh, district: Binh Thanh, weather_cell_id: HCMC_W_BT, lat: 10.8060, lon: 106.7075}
+  - {city: hcmc, segment_id: HCMC_BT_003, segment_name: Binh Thanh - Phan Dang Luu, district: Binh Thanh, weather_cell_id: HCMC_W_BT, lat: 10.8068, lon: 106.6950}
+  - {city: hcmc, segment_id: HCMC_BT_004, segment_name: Binh Thanh - Nguyen Huu Canh, district: Binh Thanh, weather_cell_id: HCMC_W_BT, lat: 10.7901, lon: 106.7197}
+  - {city: hcmc, segment_id: HCMC_BT_005, segment_name: Binh Thanh - Ung Van Khiem, district: Binh Thanh, weather_cell_id: HCMC_W_BT, lat: 10.8078, lon: 106.7220}
+  - {city: hcmc, segment_id: HCMC_TD_001, segment_name: Thu Duc - Hanoi Highway, district: Thu Duc, weather_cell_id: HCMC_W_TD, lat: 10.8230, lon: 106.7600}
+  - {city: hcmc, segment_id: HCMC_TD_002, segment_name: Thu Duc - Mai Chi Tho, district: Thu Duc, weather_cell_id: HCMC_W_TD, lat: 10.7765, lon: 106.7570}
+  - {city: hcmc, segment_id: HCMC_TD_003, segment_name: Thu Duc - Nguyen Duy Trinh, district: Thu Duc, weather_cell_id: HCMC_W_TD, lat: 10.7780, lon: 106.7900}
+  - {city: hcmc, segment_id: HCMC_TD_004, segment_name: Thu Duc - Vo Nguyen Giap, district: Thu Duc, weather_cell_id: HCMC_W_TD, lat: 10.8400, lon: 106.7800}
+  - {city: hcmc, segment_id: HCMC_TD_005, segment_name: Thu Duc - Pham Van Dong East, district: Thu Duc, weather_cell_id: HCMC_W_TD, lat: 10.8400, lon: 106.6950}
+  - {city: hcmc, segment_id: HCMC_PVD_001, segment_name: Pham Van Dong - Go Vap, district: Go Vap, weather_cell_id: HCMC_W_GV, lat: 10.8200, lon: 106.6800}
+  - {city: hcmc, segment_id: HCMC_PVD_002, segment_name: Pham Van Dong - Binh Thanh, district: Binh Thanh, weather_cell_id: HCMC_W_BT, lat: 10.8200, lon: 106.7050}
+  - {city: hcmc, segment_id: HCMC_GV_001, segment_name: Go Vap - Nguyen Kiem, district: Go Vap, weather_cell_id: HCMC_W_GV, lat: 10.8170, lon: 106.6770}
+  - {city: hcmc, segment_id: HCMC_GV_002, segment_name: Go Vap - Quang Trung, district: Go Vap, weather_cell_id: HCMC_W_GV, lat: 10.8380, lon: 106.6650}
+  - {city: hcmc, segment_id: HCMC_GV_003, segment_name: Go Vap - Phan Van Tri, district: Go Vap, weather_cell_id: HCMC_W_GV, lat: 10.8270, lon: 106.6850}
+  - {city: hcmc, segment_id: HCMC_TB_001, segment_name: Tan Binh - Cong Hoa, district: Tan Binh, weather_cell_id: HCMC_W_TB, lat: 10.8012, lon: 106.6525}
+  - {city: hcmc, segment_id: HCMC_TB_002, segment_name: Tan Binh - Truong Chinh, district: Tan Binh, weather_cell_id: HCMC_W_TB, lat: 10.8010, lon: 106.6300}
+  - {city: hcmc, segment_id: HCMC_TB_003, segment_name: Tan Binh - Hoang Van Thu, district: Tan Binh, weather_cell_id: HCMC_W_TB, lat: 10.7970, lon: 106.6650}
+  - {city: hcmc, segment_id: HCMC_TB_004, segment_name: Tan Binh - Bach Dang Airport, district: Tan Binh, weather_cell_id: HCMC_W_TB, lat: 10.8140, lon: 106.6650}
+  - {city: hcmc, segment_id: HCMC_TB_005, segment_name: Tan Binh - Airport Approach, district: Tan Binh, weather_cell_id: HCMC_W_TB, lat: 10.8230, lon: 106.6280}
+  - {city: hcmc, segment_id: HCMC_TP_001, segment_name: Tan Phu - Luy Ban Bich, district: Tan Phu, weather_cell_id: HCMC_W_TP, lat: 10.7800, lon: 106.6250}
+  - {city: hcmc, segment_id: HCMC_TP_002, segment_name: Tan Phu - Au Co, district: Tan Phu, weather_cell_id: HCMC_W_TP, lat: 10.7800, lon: 106.6420}
+  - {city: hcmc, segment_id: HCMC_TP_003, segment_name: Tan Phu - Thoai Ngoc Hau, district: Tan Phu, weather_cell_id: HCMC_W_TP, lat: 10.7700, lon: 106.6350}
+  - {city: hcmc, segment_id: HCMC_Q10_001, segment_name: District 10 - 3 Thang 2, district: District 10, weather_cell_id: HCMC_W_Q10, lat: 10.7710, lon: 106.6670}
+  - {city: hcmc, segment_id: HCMC_Q10_002, segment_name: District 10 - Ly Thai To, district: District 10, weather_cell_id: HCMC_W_Q10, lat: 10.7680, lon: 106.6720}
+  - {city: hcmc, segment_id: HCMC_Q10_003, segment_name: District 10 - Su Van Hanh, district: District 10, weather_cell_id: HCMC_W_Q10, lat: 10.7750, lon: 106.6670}
+  - {city: hcmc, segment_id: HCMC_Q5_001, segment_name: District 5 - Tran Hung Dao, district: District 5, weather_cell_id: HCMC_W_Q5, lat: 10.7540, lon: 106.6680}
+  - {city: hcmc, segment_id: HCMC_Q5_002, segment_name: District 5 - Vo Van Kiet West, district: District 5, weather_cell_id: HCMC_W_Q5, lat: 10.7556, lon: 106.6803}
+  - {city: hcmc, segment_id: HCMC_Q5_003, segment_name: District 5 - Nguyen Trai, district: District 5, weather_cell_id: HCMC_W_Q5, lat: 10.7560, lon: 106.6660}
+  - {city: hcmc, segment_id: HCMC_Q6_001, segment_name: District 6 - Kinh Duong Vuong, district: District 6, weather_cell_id: HCMC_W_Q6, lat: 10.7450, lon: 106.6300}
+  - {city: hcmc, segment_id: HCMC_Q6_002, segment_name: District 6 - Hau Giang, district: District 6, weather_cell_id: HCMC_W_Q6, lat: 10.7480, lon: 106.6450}
+  - {city: hcmc, segment_id: HCMC_Q7_001, segment_name: District 7 - Nguyen Van Linh, district: District 7, weather_cell_id: HCMC_W_Q7, lat: 10.7298, lon: 106.7014}
+  - {city: hcmc, segment_id: HCMC_Q7_002, segment_name: District 7 - Nguyen Huu Tho, district: District 7, weather_cell_id: HCMC_W_Q7, lat: 10.7400, lon: 106.7050}
+  - {city: hcmc, segment_id: HCMC_Q7_003, segment_name: District 7 - Huynh Tan Phat, district: District 7, weather_cell_id: HCMC_W_Q7, lat: 10.7350, lon: 106.7350}
+  - {city: hcmc, segment_id: HCMC_Q7_004, segment_name: District 7 - Phu My Hung, district: District 7, weather_cell_id: HCMC_W_Q7, lat: 10.7300, lon: 106.7220}
+  - {city: hcmc, segment_id: HCMC_Q8_001, segment_name: District 8 - Ta Quang Buu, district: District 8, weather_cell_id: HCMC_W_Q8, lat: 10.7350, lon: 106.6750}
+  - {city: hcmc, segment_id: HCMC_Q8_002, segment_name: District 8 - Pham The Hien, district: District 8, weather_cell_id: HCMC_W_Q8, lat: 10.7250, lon: 106.6800}
+  - {city: hcmc, segment_id: HCMC_BC_001, segment_name: Binh Chanh - QL1A West, district: Binh Chanh, weather_cell_id: HCMC_W_BC, lat: 10.7300, lon: 106.6100}
+  - {city: hcmc, segment_id: HCMC_BC_002, segment_name: Binh Chanh - Nguyen Van Linh West, district: Binh Chanh, weather_cell_id: HCMC_W_BC, lat: 10.7150, lon: 106.6400}
+  - {city: hcmc, segment_id: HCMC_BC_003, segment_name: Binh Chanh - Vo Van Kiet Extension, district: Binh Chanh, weather_cell_id: HCMC_W_BC, lat: 10.7350, lon: 106.6000}
+  - {city: hcmc, segment_id: HCMC_BTA_001, segment_name: Binh Tan - QL1A, district: Binh Tan, weather_cell_id: HCMC_W_BTA, lat: 10.7650, lon: 106.6000}
+  - {city: hcmc, segment_id: HCMC_BTA_002, segment_name: Binh Tan - Ten Lua, district: Binh Tan, weather_cell_id: HCMC_W_BTA, lat: 10.7520, lon: 106.6150}
+  - {city: hcmc, segment_id: HCMC_BTA_003, segment_name: Binh Tan - Kinh Duong Vuong, district: Binh Tan, weather_cell_id: HCMC_W_BTA, lat: 10.7430, lon: 106.6150}
+  - {city: hcmc, segment_id: HCMC_Q12_001, segment_name: District 12 - QL1A North, district: District 12, weather_cell_id: HCMC_W_Q12, lat: 10.8600, lon: 106.6300}
+  - {city: hcmc, segment_id: HCMC_Q12_002, segment_name: District 12 - Truong Chinh North, district: District 12, weather_cell_id: HCMC_W_Q12, lat: 10.8400, lon: 106.6200}
+  - {city: hcmc, segment_id: HCMC_Q12_003, segment_name: District 12 - To Ky, district: District 12, weather_cell_id: HCMC_W_Q12, lat: 10.8550, lon: 106.6500}
+  - {city: hcmc, segment_id: HCMC_NB_001, segment_name: Nha Be - Nguyen Huu Tho South, district: Nha Be, weather_cell_id: HCMC_W_NB, lat: 10.7000, lon: 106.7050}
+  - {city: hcmc, segment_id: HCMC_NB_002, segment_name: Nha Be - Nguyen Van Tao, district: Nha Be, weather_cell_id: HCMC_W_NB, lat: 10.6650, lon: 106.7200}
+  - {city: hcmc, segment_id: HCMC_NB_003, segment_name: Nha Be - Huynh Tan Phat South, district: Nha Be, weather_cell_id: HCMC_W_NB, lat: 10.6900, lon: 106.7400}
+  - {city: hcmc, segment_id: HCMC_CL_001, segment_name: Cat Lai - Dong Van Cong, district: Thu Duc, weather_cell_id: HCMC_W_TD, lat: 10.7700, lon: 106.7800}
+  - {city: hcmc, segment_id: HCMC_CL_002, segment_name: Cat Lai - Nguyen Thi Dinh, district: Thu Duc, weather_cell_id: HCMC_W_TD, lat: 10.7650, lon: 106.7550}
+  - {city: hcmc, segment_id: HCMC_CL_003, segment_name: Cat Lai - Ring Road 2 East, district: Thu Duc, weather_cell_id: HCMC_W_TD, lat: 10.7900, lon: 106.8050}

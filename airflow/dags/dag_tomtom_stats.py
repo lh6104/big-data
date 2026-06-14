@@ -57,16 +57,19 @@ def parse_and_load_stats():
 fetch_stats = PythonOperator(
     task_id="fetch_tomtom_stats",
     python_callable=fetch_tomtom_stats,
+    dag=dag,
 )
 
 load_stats = PythonOperator(
     task_id="load_stats_to_silver",
     python_callable=parse_and_load_stats,
+    dag=dag,
 )
 
 notify = BashOperator(
     task_id="notify_stats_loaded",
     bash_command="echo 'TomTom Stats loaded for week of {{ ds }}'",
+    dag=dag,
 )
 
 fetch_stats >> load_stats >> notify

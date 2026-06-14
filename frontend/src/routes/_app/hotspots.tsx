@@ -4,25 +4,25 @@ import { z } from "zod";
 import { PlaceholderPage } from "@/components/dashboard/PlaceholderPage";
 import { Flame, MapPin, TrendingUp, TrendingDown, Minus, Layers } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Tooltip, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { useAppStore, type CityKey } from "@/lib/store/useAppStore";
 import useSWR from "swr";
 import { apiGet } from "@/lib/api/client";
 
 const searchSchema = z.object({
-  city: fallback(z.enum(["hanoi", "hcmc"]), "hanoi").default("hanoi"),
-  severity: fallback(z.enum(["all", "critical", "high", "medium"]), "all").default("all"),
+  city: fallback(z.enum(["hanoi", "hcmc", "all"]), "hanoi").default("hanoi"),
+  severity: fallback(z.enum(["all", "critical", "high", "medium", "low"]), "all").default("all"),
 });
 
-type SeverityFilter = "all" | "critical" | "high" | "medium";
+type SeverityFilter = "all" | "critical" | "high" | "medium" | "low";
+type HotspotCity = CityKey | "all";
 
 export const Route = createFileRoute("/_app/hotspots")({
   validateSearch: zodValidator(searchSchema),
   component: HotspotsPage,
 });
 
-type Severity = "Critical" | "High" | "Medium";
+type Severity = "Critical" | "High" | "Medium" | "Low";
 
 type Hotspot = {
   id: string;
@@ -69,7 +69,8 @@ const toHotspot = (h: ApiHotspot): Hotspot & { city: CityKey } => ({
   city: h.city,
 });
 
-const CITY_CENTER: Record<CityKey, { lat: number; lon: number; zoom: number }> = {
+const CITY_CENTER: Record<HotspotCity, { lat: number; lon: number; zoom: number }> = {
+  all: { lat: 16.2, lon: 106.4, zoom: 6 },
   hanoi: { lat: 21.0285, lon: 105.8542, zoom: 12 },
   hcmc: { lat: 10.7769, lon: 106.7009, zoom: 12 },
 };
@@ -78,6 +79,7 @@ const SEVERITY_COLOR: Record<Severity, string> = {
   Critical: "#ef4444",
   High: "#f97316",
   Medium: "#eab308",
+  Low: "#22c55e",
 };
 
 const sevTone: Record<string, string> = {
@@ -93,16 +95,8 @@ function TrendIcon({ trend }: { trend: string }) {
   return <Minus className="h-3.5 w-3.5 text-muted-foreground" />;
 }
 
-function PanTo({ target }: { target: { lat: number; lon: number; id: string } | null }) {
-  const map = useMap();
-  useEffect(() => {
-    if (target) map.flyTo([target.lat, target.lon], Math.max(map.getZoom(), 13), { duration: 0.7 });
-  }, [target, map]);
-  return null;
-}
-
 function HotspotsPage() {
-  const { city, severity } = Route.useSearch() as { city: CityKey; severity: SeverityFilter };
+  const { city, severity } = Route.useSearch() as { city: HotspotCity; severity: SeverityFilter };
   const navigate = useNavigate({ from: "/hotspots" });
   const setSelectedCity = useAppStore((s) => s.setSelectedCity);
   const setSelectedSegment = useAppStore((s) => s.setSelectedSegment);
@@ -110,16 +104,27 @@ function HotspotsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panTarget, setPanTarget] = useState<{ lat: number; lon: number; id: string } | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [leaflet, setLeaflet] = useState<any>(null);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const severityParam = severity === "all" ? "" : `&severity=${severity}`;
-  const { data, error, isLoading } = useSWR<ApiHotspot[]>(`/hotspots?city=${city}${severityParam}`, apiGet, {
+  const { data, error, isLoading } = useSWR<ApiHotspot[]>(`/hotspots?city=${city}&include_demo_coverage=true${severityParam}`, apiGet, {
     refreshInterval: 60_000,
   });
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
-    setSelectedCity(city);
+    let active = true;
+    import("react-leaflet").then((module) => {
+      if (active) setLeaflet(module);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (city !== "all") setSelectedCity(city);
   }, [city, setSelectedCity]);
 
   useEffect(() => {
@@ -146,10 +151,24 @@ function HotspotsPage() {
     setPanTarget({ lat: h.lat, lon: h.lon, id: h.id + ":" + Date.now() });
   };
 
-  const setCity = (next: CityKey) => navigate({ search: { city: next, severity } });
+  const setCity = (next: HotspotCity) => navigate({ search: { city: next, severity } });
   const setSeverity = (next: SeverityFilter) => navigate({ search: { city, severity: next } });
 
   const center = CITY_CENTER[city];
+  const MapContainer = leaflet?.MapContainer;
+  const TileLayer = leaflet?.TileLayer;
+  const CircleMarker = leaflet?.CircleMarker;
+  const Tooltip = leaflet?.Tooltip;
+  const PanToComponent = useMemo(() => {
+    if (!leaflet) return null;
+    return function PanToInner({ target }: { target: { lat: number; lon: number; id: string } | null }) {
+      const map = leaflet.useMap();
+      useEffect(() => {
+        if (target) map.flyTo([target.lat, target.lon], Math.max(map.getZoom(), 13), { duration: 0.7 });
+      }, [target, map]);
+      return null;
+    };
+  }, [leaflet]);
 
   return (
     <PlaceholderPage title="Hotspots" subtitle="Detected congestion clusters and abnormal traffic regions">
@@ -181,17 +200,17 @@ function HotspotsPage() {
               <p className="text-xs text-muted-foreground">Spatial distribution of active congestion clusters · Data source: API</p>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {(["hanoi", "hcmc"] as CityKey[]).map((c) => (
+              {(["hanoi", "hcmc", "all"] as HotspotCity[]).map((c) => (
                 <button
                   key={c}
                   onClick={() => setCity(c)}
                   className={`rounded-full px-3 py-1.5 text-[11px] font-semibold ${city === c ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}
                 >
-                  {c === "hanoi" ? "Hanoi" : "HCMC"}
+                  {c === "all" ? "All" : c === "hanoi" ? "Hanoi" : "HCMC"}
                 </button>
               ))}
               <span className="mx-1 self-center text-muted-foreground">·</span>
-              {(["all", "critical", "high", "medium"] as SeverityFilter[]).map((f) => (
+              {(["all", "critical", "high", "medium", "low"] as SeverityFilter[]).map((f) => (
                 <button
                   key={f}
                   onClick={() => setSeverity(f)}
@@ -203,13 +222,13 @@ function HotspotsPage() {
             </div>
           </div>
           <div className="relative h-[420px] overflow-hidden rounded-2xl">
-            {mounted ? (
+            {mounted && MapContainer && TileLayer && CircleMarker && Tooltip && PanToComponent ? (
               <MapContainer key={city} center={[center.lat, center.lon]} zoom={center.zoom} scrollWheelZoom className="h-full w-full">
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                <PanTo target={panTarget} />
+                <PanToComponent target={panTarget} />
                 {visibleHotspots.map((h) => {
                   const color = SEVERITY_COLOR[h.severity];
                   const isSelected = selectedId === h.id;

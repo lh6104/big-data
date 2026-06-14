@@ -69,6 +69,19 @@ def _jsonable(value: Any) -> float | str | bool | None:
     return str(value)
 
 
+def _optional_float(row: Any, key: str, *, zero_is_missing: bool = True) -> float | None:
+    value = row.get(key)
+    if value is None or pd.isna(value):
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if zero_is_missing and numeric == 0.0:
+        return None
+    return numeric
+
+
 def _baseline_values(horizon_minutes: int, feature_columns: list[str]) -> dict[str, Any]:
     try:
         train = train_features(horizon_minutes)
@@ -172,6 +185,12 @@ def explain_prediction(
     contributions = sorted(contributions, key=lambda item: abs(item.shap_value), reverse=True)[:top_n]
     current_speed = row.get("currentSpeed")
     current_jam_factor = row.get("jamFactor")
+    weather_temperature = _optional_float(row, "weather_temperature")
+    weather_humidity = _optional_float(row, "weather_humidity")
+    weather_visibility = _optional_float(row, "weather_visibility")
+    weather_rain = _optional_float(row, "weather_rain_1h", zero_is_missing=False)
+    if weather_temperature is None and weather_humidity is None and weather_visibility is None:
+        weather_rain = None
 
     return PredictionExplanation(
         prediction_id=prediction_id,
@@ -191,16 +210,18 @@ def explain_prediction(
         missing_features=missing[:50],
         top_features=contributions,
         weather_context={
-            "temperature": float(row.get("weather_temperature", 0.0)),
-            "humidity": float(row.get("weather_humidity", 0.0)),
-            "rain_1h": float(row.get("weather_rain_1h", 0.0)),
-            "visibility": float(row.get("weather_visibility", 0.0)),
+            "temperature": weather_temperature,
+            "humidity": weather_humidity,
+            "rain_1h": weather_rain,
+            "visibility": weather_visibility,
+            "source": "OpenWeatherMap",
+            "fallback": "neutral_weather_features" if weather_temperature is None and weather_humidity is None and weather_visibility is None else None,
         },
         baseline_context={
-            "p15": float(row.get("p15", 0.0)),
-            "p50": float(row.get("p50", row.get("speed_rolling_avg_60m", 0.0))),
-            "p85": float(row.get("p85", 0.0)),
-            "typical_hour_avg": float(row.get("speed_rolling_avg_60m", 0.0)),
+            "p15": _optional_float(row, "p15"),
+            "p50": _optional_float(row, "p50") or _optional_float(row, "speed_rolling_avg_60m"),
+            "p85": _optional_float(row, "p85"),
+            "typical_hour_avg": _optional_float(row, "speed_rolling_avg_60m"),
             "mode": "training-median-baseline",
         },
     )

@@ -1,0 +1,33 @@
+{
+  "GET /model/status": {
+    "description": "Return loaded model metadata and available horizons.",
+    "response_fields": [
+      "loaded",
+      "run_id",
+      "horizons",
+      "selected_models",
+      "selected_metrics"
+    ]
+  },
+  "GET /traffic/predict/{segment_id}?horizon=15m": {
+    "description": "Predict future speed for one segment using latest feature vector.",
+    "required_feature_schema": "metadata/feature_schema_used.json",
+    "response_fields": [
+      "segment_id",
+      "horizon",
+      "predicted_speed",
+      "prediction_lower_p90",
+      "prediction_upper_p90",
+      "reliability_score",
+      "reliability_level",
+      "model_version"
+    ]
+  },
+  "POST /traffic/predict/batch": {
+    "description": "Batch prediction for multiple segment feature rows.",
+    "input": "List of JSON rows containing expected_input_features."
+  },
+  "GET /predictions/{prediction_id}/explain": {
+    "description": "Return top factors based on SHAP or feature importance."
+  }
+}

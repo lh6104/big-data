@@ -30,7 +30,7 @@ WAREHOUSE = "s3a://lakehouse"
 RAW_DATA_DIR = "/opt/airflow/raw"
 
 # Phase 2a: Clean traffic and weather in parallel
-with TaskGroup("clean_data", tooltip="Validate and clean raw data") as tg_clean:
+with TaskGroup("clean_data", tooltip="Validate and clean raw data", dag=dag) as tg_clean:
     clean_traffic = BashOperator(
         task_id="clean_traffic",
         bash_command=f"""
@@ -59,10 +59,11 @@ match_traffic_weather = BashOperator(
         /opt/spark-apps/processing/silver/match_traffic_weather.py \
         {WAREHOUSE}
     """,
+    dag=dag,
 )
 
 # Phase 2c: Clean events (news/alerts)
-with TaskGroup("clean_events", tooltip="Process news events") as tg_events:
+with TaskGroup("clean_events", tooltip="Process news events", dag=dag) as tg_events:
     clean_news = BashOperator(
         task_id="clean_news_events",
         bash_command=f"""

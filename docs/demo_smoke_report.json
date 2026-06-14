@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-12T01:24:51.113866+00:00",
+  "generated_at": "2026-06-13T23:27:01.606559+00:00",
   "base_url": "http://localhost:8000",
   "checks": [
     {
@@ -15,17 +15,17 @@
     {
       "check": "GeoJSON Hanoi real",
       "status": "PASS",
-      "detail": "75 features"
+      "detail": "10 features"
     },
     {
       "check": "GeoJSON HCMC real",
       "status": "PASS",
-      "detail": "72 features"
+      "detail": "10 features"
     },
     {
       "check": "GeoJSON HCMC expanded",
       "status": "PASS",
-      "detail": "140 features"
+      "detail": "620 features"
     },
     {
       "check": "Traffic segments",
@@ -35,12 +35,17 @@
     {
       "check": "Forecast 15m",
       "status": "PASS",
-      "detail": "model=lightgbm_main, coverage=52/67, latency_ms=1412.8"
+      "detail": "model=extra_trees, coverage=62/62, latency_ms=2968.9"
     },
     {
       "check": "Forecast 60m",
       "status": "PASS",
-      "detail": "model=lightgbm_main, coverage=52/67, latency_ms=128.4"
+      "detail": "model=extra_trees, coverage=62/62, latency_ms=594.7"
+    },
+    {
+      "check": "Forecast reliability",
+      "status": "PASS",
+      "detail": "model=extra_trees, coverage=62/62, latency_ms=45.9"
     },
     {
       "check": "Predicted hotspots",
@@ -53,14 +58,29 @@
       "detail": "model status returned"
     },
     {
+      "check": "Graph propagation",
+      "status": "PASS",
+      "detail": "propagation returned"
+    },
+    {
+      "check": "Corridor risk",
+      "status": "PASS",
+      "detail": "corridor risk returned"
+    },
+    {
       "check": "System status",
       "status": "PASS",
       "detail": "system status returned"
     },
     {
+      "check": "What-if simulation",
+      "status": "PASS",
+      "detail": "scenario impact returned"
+    },
+    {
       "check": "Frontend build",
       "status": "PASS",
-      "detail": "npm run build completed in 7.05s"
+      "detail": "npm run build completed in 57.56s"
     }
   ],
   "overall_status": "PASS"

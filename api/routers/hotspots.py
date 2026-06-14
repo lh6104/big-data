@@ -13,6 +13,7 @@ import yaml
 
 from api.services.local_data import DataUnavailableError, PROJECT_ROOT, latest_by_segment, normalize_city, traffic_features
 from api.services.model_inference import ModelUnavailableError, normalize_horizon, predict_for_feature_row, predict_for_feature_rows
+from api.routers.segments import DEMO_CORRIDORS, DEMO_LOCAL_GRIDS
 
 logger = logging.getLogger(__name__)
 
@@ -220,10 +221,114 @@ def _score_prediction(row: Any, prediction: Any) -> dict[str, Any]:
     }
 
 
+def _severity_from_jam(avg_jam: float) -> str:
+    if avg_jam >= 8:
+        return "critical"
+    if avg_jam >= 6:
+        return "high"
+    if avg_jam >= 3:
+        return "medium"
+    return "low"
+
+
+def _current_hotspots_for_city(city: str, latest) -> list[Hotspot]:
+    if latest.empty:
+        return []
+
+    congested = latest[latest["jamFactor"] >= 3].copy()
+    if congested.empty:
+        return []
+
+    congested["cluster_id"] = congested["segment_name"].fillna(congested["segment_id"]).astype(str).str[:12]
+    hotspots = []
+    for idx, (_, group) in enumerate(congested.groupby("cluster_id")):
+        avg_jam = float(group["jamFactor"].mean())
+        hotspots.append(
+            Hotspot(
+                hotspot_id=f"hotspot_{city}_{idx}",
+                cluster_id=idx,
+                city=city or str(group["city"].iloc[0]),
+                center_lat=round(float(group["lat"].mean()), 6),
+                center_lon=round(float(group["lon"].mean()), 6),
+                radius_km=0.8,
+                num_segments=int(group["segment_id"].nunique()),
+                avg_congestion=round(float((group["freeFlowSpeed"] - group["currentSpeed"]).clip(lower=0).mean()), 3),
+                avg_jam_factor=round(avg_jam, 2),
+                severity=_severity_from_jam(avg_jam),
+                detected_at=group["timestamp"].max().to_pydatetime(),
+            )
+        )
+    return hotspots
+
+
+def _demo_hotspots_for_city(city: str, latest, start_idx: int = 0) -> list[Hotspot]:
+    detected_at = datetime.utcnow()
+    hotspots: list[Hotspot] = []
+    templates = latest[latest["jamFactor"] >= 3] if not latest.empty and "jamFactor" in latest else latest
+    if templates.empty:
+        templates = latest
+
+    def template(idx: int) -> tuple[float, float, float]:
+        if templates.empty:
+            return 28.0, 6.2, 22.0
+        row = templates.iloc[idx % len(templates)]
+        current = float(row.get("currentSpeed", 28.0))
+        free_flow = float(row.get("freeFlowSpeed", 48.0))
+        jam = float(row.get("jamFactor", 6.2))
+        return current, jam, max(0.0, free_flow - current)
+
+    idx = start_idx
+    for corridor_idx, corridor in enumerate(DEMO_CORRIDORS.get(city, []), start=1):
+        points = corridor["points"]
+        center_lat = sum(point[0] for point in points) / len(points)
+        center_lon = sum(point[1] for point in points) / len(points)
+        speed, jam, congestion = template(idx)
+        jam = max(jam, 3.0 + ((idx * 1.7) % 6.5))
+        hotspots.append(
+            Hotspot(
+                hotspot_id=f"hotspot_{city}_demo_corridor_{corridor_idx}",
+                cluster_id=idx,
+                city=city,
+                center_lat=round(center_lat, 6),
+                center_lon=round(center_lon, 6),
+                radius_km=1.8,
+                num_segments=18 + corridor_idx,
+                avg_congestion=round(congestion, 3),
+                avg_jam_factor=round(jam, 2),
+                severity=_severity_from_jam(jam),
+                detected_at=detected_at,
+            )
+        )
+        idx += 1
+
+    for grid_idx, grid in enumerate(DEMO_LOCAL_GRIDS.get(city, []), start=1):
+        min_lat, max_lat, min_lon, max_lon = grid["bounds"]
+        speed, jam, congestion = template(idx)
+        jam = max(jam, 3.0 + ((idx * 1.7) % 6.5))
+        hotspots.append(
+            Hotspot(
+                hotspot_id=f"hotspot_{city}_demo_local_{grid_idx}",
+                cluster_id=idx,
+                city=city,
+                center_lat=round((min_lat + max_lat) / 2, 6),
+                center_lon=round((min_lon + max_lon) / 2, 6),
+                radius_km=2.4,
+                num_segments=int(grid["lat_lines"] + grid["lon_lines"]),
+                avg_congestion=round(congestion, 3),
+                avg_jam_factor=round(jam, 2),
+                severity=_severity_from_jam(jam),
+                detected_at=detected_at,
+            )
+        )
+        idx += 1
+    return hotspots
+
+
 @router.get("", response_model=List[Hotspot])
 def get_hotspots(
     city: str = Query("hanoi", description="Filter by city"),
-    severity: str = Query(None, description="Filter by severity (low, medium, high)")
+    severity: str = Query(None, description="Filter by severity (low, medium, high)"),
+    include_demo_coverage: bool = Query(False, description="Add demo coverage clusters for expanded map views"),
 ):
     """Get current congestion hotspots.
 
@@ -236,38 +341,19 @@ def get_hotspots(
     """
     city = normalize_city(city)
     try:
-        latest = latest_by_segment(traffic_features(), city)
+        all_features = traffic_features()
     except DataUnavailableError as exc:
         from fastapi import HTTPException
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    if latest.empty:
-        return []
-
-    congested = latest[latest["jamFactor"] >= 3].copy()
-    if congested.empty:
-        return []
-
-    congested["cluster_id"] = congested["segment_name"].fillna(congested["segment_id"]).astype(str).str[:12]
-    hotspots = []
-    for idx, (_, group) in enumerate(congested.groupby("cluster_id")):
-        avg_jam = float(group["jamFactor"].mean())
-        sev = "critical" if avg_jam >= 8 else "high" if avg_jam >= 6 else "medium"
-        hotspots.append(
-            Hotspot(
-                hotspot_id=f"hotspot_{city}_{idx}",
-                cluster_id=idx,
-                city=city or str(group["city"].iloc[0]),
-                center_lat=round(float(group["lat"].mean()), 6),
-                center_lon=round(float(group["lon"].mean()), 6),
-                radius_km=0.8,
-                num_segments=int(group["segment_id"].nunique()),
-                avg_congestion=round(float((group["freeFlowSpeed"] - group["currentSpeed"]).clip(lower=0).mean()), 3),
-                avg_jam_factor=round(avg_jam, 2),
-                severity=sev,
-                detected_at=group["timestamp"].max().to_pydatetime(),
-            )
-        )
+    city_codes = ("hanoi", "hcmc") if city == "all" else (city or "hanoi",)
+    hotspots: list[Hotspot] = []
+    for city_code in city_codes:
+        latest = latest_by_segment(all_features, city_code)
+        city_hotspots = _current_hotspots_for_city(city_code, latest)
+        if include_demo_coverage:
+            city_hotspots.extend(_demo_hotspots_for_city(city_code, latest, len(city_hotspots)))
+        hotspots.extend(city_hotspots)
 
     if severity:
         hotspots = [h for h in hotspots if h.severity == severity.lower()]

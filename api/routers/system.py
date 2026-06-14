@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -150,6 +151,55 @@ def _streaming_status() -> dict[str, Any]:
     }
 
 
+def _configured(value: str | None) -> bool:
+    if not value:
+        return False
+    lowered = value.strip().lower()
+    return bool(lowered) and not lowered.startswith("replace-with")
+
+
+def _local_stack_status() -> dict[str, Any]:
+    return {
+        "status": "configured",
+        "components": {
+            "redis": {"status": "configured", "url": os.getenv("REDIS_URL", "redis://localhost:6379/0")},
+            "kafka": {"status": "configured", "bootstrap_servers": os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")},
+            "schema_registry": {"status": "configured", "url": os.getenv("SCHEMA_REGISTRY_URL", "http://localhost:8081")},
+            "minio": {"status": "configured", "endpoint": os.getenv("MINIO_ENDPOINT", "localhost:9000")},
+            "postgres": {"status": "configured", "database": os.getenv("POSTGRES_DB", "traffic_analytics")},
+        },
+    }
+
+
+def _cloud_status() -> dict[str, Any]:
+    aws_key = os.getenv("AWS_ACCESS_KEY_ID")
+    aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
+    s3_bucket = os.getenv("S3_BUCKET")
+    s3_region = os.getenv("AWS_REGION", "ap-southeast-1")
+    neo4j_uri = os.getenv("NEO4J_URI")
+    neo4j_user = os.getenv("NEO4J_USERNAME") or os.getenv("NEO4J_USER")
+    neo4j_password = os.getenv("NEO4J_PASSWORD")
+
+    s3_configured = _configured(aws_key) and _configured(aws_secret) and _configured(s3_bucket)
+    neo4j_configured = _configured(neo4j_uri) and _configured(neo4j_user) and _configured(neo4j_password)
+    return {
+        "status": "configured" if s3_configured and neo4j_configured else "partial" if s3_configured or neo4j_configured else "not_configured",
+        "s3": {
+            "status": "configured" if s3_configured else "not_configured",
+            "bucket": s3_bucket if _configured(s3_bucket) else None,
+            "region": s3_region,
+            "warehouse": os.getenv("S3_WAREHOUSE") if _configured(os.getenv("S3_WAREHOUSE")) else None,
+            "verification": "configuration_only",
+        },
+        "neo4j_aura": {
+            "status": "configured" if neo4j_configured else "not_configured",
+            "uri": neo4j_uri if _configured(neo4j_uri) else None,
+            "database": os.getenv("NEO4J_DATABASE") if _configured(os.getenv("NEO4J_DATABASE")) else None,
+            "verification": "use scripts/check_neo4j_aura.py for live connectivity",
+        },
+    }
+
+
 @router.get("/status")
 def get_system_status() -> dict[str, Any]:
     """Return demo-operability status without claiming production telemetry."""
@@ -163,4 +213,6 @@ def get_system_status() -> dict[str, Any]:
         "model": _model_status_summary(),
         "performance": _performance_status(),
         "streaming": _streaming_status(),
+        "local_stack": _local_stack_status(),
+        "cloud": _cloud_status(),
     }

@@ -1,0 +1,37 @@
+{
+  "dataset_name": "gold_training_dataset",
+  "version": "v1_30d",
+  "created_date": "2026-06-10",
+  "grain": "segment_id_timestamp",
+  "time_frequency": "15min",
+  "cities": [
+    "hanoi",
+    "hcmc"
+  ],
+  "horizons": [
+    "15m",
+    "60m",
+    "240m"
+  ],
+  "has_targets": true,
+  "target_columns": [
+    "future_speed_15m",
+    "future_speed_60m",
+    "future_speed_240m"
+  ],
+  "intended_use": "Kaggle model training for Cognitive Traffic Analytics forecasting notebook",
+  "source_tables": [
+    "exports/kaggle_training_pack_v1_20260610/data/gold_training_dataset.parquet",
+    "synthetic_30_day_calendar_grid_calibrated_from_existing_segment_profiles"
+  ],
+  "row_count": 57600,
+  "column_count": 67,
+  "min_timestamp": "2026-05-10T00:00:00",
+  "max_timestamp": "2026-06-08T23:45:00",
+  "synthetic_policy": {
+    "contains_synthetic_rows": true,
+    "synthetic_row_count": 57600,
+    "real_observation_claim": false,
+    "note": "Rows are realistic synthetic samples calibrated from the existing pack. Use real TomTom/OWM collection for production-grade evidence."
+  }
+}

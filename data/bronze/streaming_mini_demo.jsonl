@@ -1,0 +1,9 @@
+{"topic": "events.news", "value": {"event_id": "mini-news-0", "city": "hanoi", "event_category": "traffic", "published_at_utc": "2026-06-13T23:25:34.202480+00:00"}}
+{"topic": "events.news", "value": {"event_id": "mini-news-1", "city": "hanoi", "event_category": "traffic", "published_at_utc": "2026-06-13T23:25:34.202480+00:00"}}
+{"topic": "events.news", "value": {"event_id": "mini-news-2", "city": "hanoi", "event_category": "traffic", "published_at_utc": "2026-06-13T23:25:34.202480+00:00"}}
+{"topic": "weather.raw", "value": {"weather_cell_id": "HN_W_0", "city": "hanoi", "rain_1h": 0.0, "timestamp": "2026-06-13T23:25:34.202480+00:00"}}
+{"topic": "weather.raw", "value": {"weather_cell_id": "HN_W_1", "city": "hanoi", "rain_1h": 0.0, "timestamp": "2026-06-13T23:25:34.202480+00:00"}}
+{"topic": "weather.raw", "value": {"weather_cell_id": "HN_W_2", "city": "hanoi", "rain_1h": 0.0, "timestamp": "2026-06-13T23:25:34.202480+00:00"}}
+{"topic": "traffic.raw", "value": {"segment_id": "HN_MINI_000", "city": "hanoi", "currentSpeed": 25, "timestamp": "2026-06-13T23:25:34.202480+00:00"}}
+{"topic": "traffic.raw", "value": {"segment_id": "HN_MINI_001", "city": "hanoi", "currentSpeed": 26, "timestamp": "2026-06-13T23:25:34.202480+00:00"}}
+{"topic": "traffic.raw", "value": {"segment_id": "HN_MINI_002", "city": "hanoi", "currentSpeed": 27, "timestamp": "2026-06-13T23:25:34.202480+00:00"}}

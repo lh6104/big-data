@@ -26,12 +26,26 @@ NOMINATIM_URL: str = os.getenv("NOMINATIM_URL", "http://localhost:8080")
 NOMINATIM_PUBLIC_URL: str = "https://nominatim.openstreetmap.org"
 NOMINATIM_PUBLIC_RATE: float = 1.0    # req/s
 
-# MinIO / S3
+# AWS S3 lakehouse
+AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "")
+AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+AWS_REGION: str = os.getenv("AWS_REGION", "ap-southeast-1")
+S3_BUCKET: str = os.getenv("S3_BUCKET", "cognitive-traffic-lakehouse")
+S3_WAREHOUSE: str = os.getenv("S3_WAREHOUSE", f"s3a://{S3_BUCKET}/warehouse")
+S3_ENDPOINT: str = os.getenv("S3_ENDPOINT", "")
+
+# MinIO / S3-compatible local fallback
 MINIO_ENDPOINT: str = os.getenv("MINIO_ENDPOINT", "localhost:9000")
 MINIO_ACCESS_KEY: str = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
 MINIO_SECRET_KEY: str = os.getenv("MINIO_SECRET_KEY", "minioadmin")
 MINIO_BUCKET_BRONZE: str = "warehouse"
 BRONZE_PREFIX: str = "bronze/events_raw"
+
+# Neo4j AuraDB
+NEO4J_URI: str = os.getenv("NEO4J_URI", "")
+NEO4J_USERNAME: str = os.getenv("NEO4J_USERNAME", os.getenv("NEO4J_USER", "neo4j"))
+NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD", "")
+NEO4J_DATABASE: str = os.getenv("NEO4J_DATABASE", "neo4j")
 
 # Crawler
 CRAWLER_USER_AGENT: str = (
@@ -81,6 +95,16 @@ class _SettingsInstance:
         self.MINIO_SECRET_KEY = MINIO_SECRET_KEY
         self.MINIO_BUCKET_BRONZE = MINIO_BUCKET_BRONZE
         self.BRONZE_PREFIX = BRONZE_PREFIX
+        self.AWS_ACCESS_KEY_ID = AWS_ACCESS_KEY_ID
+        self.AWS_SECRET_ACCESS_KEY = AWS_SECRET_ACCESS_KEY
+        self.AWS_REGION = AWS_REGION
+        self.S3_BUCKET = S3_BUCKET
+        self.S3_WAREHOUSE = S3_WAREHOUSE
+        self.S3_ENDPOINT = S3_ENDPOINT
+        self.NEO4J_URI = NEO4J_URI
+        self.NEO4J_USERNAME = NEO4J_USERNAME
+        self.NEO4J_PASSWORD = NEO4J_PASSWORD
+        self.NEO4J_DATABASE = NEO4J_DATABASE
         self.CRAWLER_USER_AGENT = CRAWLER_USER_AGENT
         self.DOMAIN_RATE_LIMIT = DOMAIN_RATE_LIMIT
         self.HTTP_TIMEOUT = HTTP_TIMEOUT

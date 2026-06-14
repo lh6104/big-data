@@ -64,16 +64,19 @@ def check_bronze_tables():
 kafka_lag_check = PythonOperator(
     task_id="check_kafka_lag",
     python_callable=check_kafka_lag,
+    dag=dag,
 )
 
 bronze_count_check = PythonOperator(
     task_id="check_bronze_tables",
     python_callable=check_bronze_tables,
+    dag=dag,
 )
 
 quality_report = BashOperator(
     task_id="generate_quality_report",
     bash_command="echo 'Data Quality Check Complete at' $(date)",
+    dag=dag,
 )
 
 [kafka_lag_check, bronze_count_check] >> quality_report

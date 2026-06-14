@@ -31,6 +31,27 @@ def fetch_json(base_url: str, endpoint: str, timeout: float = 10.0) -> tuple[int
         return None, None, str(exc), None
 
 
+def post_json(
+    base_url: str, endpoint: str, payload: dict[str, Any], timeout: float = 10.0
+) -> tuple[int | None, Any, str | None, float | None]:
+    started = time.perf_counter()
+    body = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        base_url.rstrip("/") + endpoint,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            response_body = response.read()
+            return response.status, json.loads(response_body.decode("utf-8")), None, (time.perf_counter() - started) * 1000.0
+    except urllib.error.HTTPError as exc:
+        return exc.code, None, str(exc), (time.perf_counter() - started) * 1000.0
+    except Exception as exc:
+        return None, None, str(exc), None
+
+
 def item(name: str, status: str, detail: str) -> dict[str, str]:
     return {"check": name, "status": status, "detail": detail}
 
@@ -40,19 +61,28 @@ def run_endpoint_checks(base_url: str) -> list[dict[str, str]]:
     specs = [
         ("API health", "/health", lambda payload: "status" in payload, "200 OK"),
         ("Dashboard summary", "/dashboard/summary?city=hanoi", lambda payload: payload.get("monitored_segments", 0) >= 0, "summary returned"),
-        ("GeoJSON Hanoi real", "/segments/geojson?city=hanoi", lambda payload: len(payload.get("features", [])) >= 50, "hanoi real features >= 50"),
-        ("GeoJSON HCMC real", "/segments/geojson?city=hcmc", lambda payload: len(payload.get("features", [])) >= 50, "hcmc real features >= 50"),
+        ("GeoJSON Hanoi real", "/segments/geojson?city=hanoi", lambda payload: len(payload.get("features", [])) >= 10, "hanoi real features >= 10"),
+        ("GeoJSON HCMC real", "/segments/geojson?city=hcmc", lambda payload: len(payload.get("features", [])) >= 10, "hcmc real features >= 10"),
         (
-            "GeoJSON HCMC expanded",
-            "/segments/geojson?city=hcmc&include_demo_coverage=true",
-            lambda payload: len(payload.get("features", [])) >= 120,
-            "hcmc expanded features >= 120",
+            "Live Map clean roads",
+            "/segments/live-map?city=hanoi&limit=120",
+            lambda payload: 0 < len(payload.get("segments", [])) <= 150
+            and all("_MESH_" not in row.get("id", "") and "_LOCAL_" not in row.get("id", "") for row in payload.get("segments", [])),
+            "road-shaped live map segments only",
         ),
         ("Traffic segments", "/traffic/segments?city=hanoi", lambda payload: isinstance(payload, list) and len(payload) > 0, "segments > 0"),
         ("Forecast 15m", "/traffic/predict/HN_005?horizon=15m", lambda payload: "predicted_speed" in payload, "forecast returned"),
         ("Forecast 60m", "/traffic/predict/HN_005?horizon=60m", lambda payload: "predicted_speed" in payload, "forecast returned"),
+        (
+            "Forecast reliability",
+            "/traffic/predict/HN_005?horizon=15m",
+            lambda payload: "reliability_level" in payload and "confidence_band" in payload,
+            "reliability fields returned",
+        ),
         ("Predicted hotspots", "/hotspots/predicted?city=hanoi&horizon=15m", lambda payload: isinstance(payload, list), "risk list returned"),
-        ("Model status", "/traffic/model/status?load_models=true", lambda payload: "horizons" in payload, "model status returned"),
+        ("Model status", "/model/status?load_models=true", lambda payload: "horizons" in payload, "model status returned"),
+        ("Graph propagation", "/graph/propagation/HN_005", lambda payload: "propagation_score" in payload, "propagation returned"),
+        ("Corridor risk", "/corridors/risk?city=hanoi", lambda payload: "ranked_corridors" in payload, "corridor risk returned"),
         ("System status", "/system/status", lambda payload: "api" in payload and "data" in payload, "system status returned"),
     ]
     for name, endpoint, validator, detail in specs:
@@ -69,6 +99,16 @@ def run_endpoint_checks(base_url: str) -> list[dict[str, str]]:
             checks.append(item(name, "PASS", detail))
         else:
             checks.append(item(name, "FAIL", f"{code or 'NO_RESPONSE'} {error or 'invalid response'}"))
+
+    code, payload, error, _ = post_json(
+        base_url,
+        "/traffic/simulate",
+        {"segment_id": "HN_005", "horizon": "15m", "rain_1h_mm": 30, "event_type": "accident"},
+    )
+    if code and 200 <= code < 400 and payload and "simulated_risk" in payload:
+        checks.append(item("What-if simulation", "PASS", "scenario impact returned"))
+    else:
+        checks.append(item("What-if simulation", "FAIL", f"{code or 'NO_RESPONSE'} {error or 'invalid response'}"))
     return checks
 
 

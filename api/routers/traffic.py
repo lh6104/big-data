@@ -1,13 +1,14 @@
 """Traffic data endpoints (real-time and forecast)."""
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field
+from typing import Any, List, Optional
 from datetime import datetime
 import logging
 
-from api.services.local_data import DataUnavailableError, latest_by_segment, normalize_city, train_features, traffic_features
+from api.services.local_data import DataUnavailableError, latest_by_segment, normalize_city, traffic_features
 from api.services.model_inference import ModelUnavailableError, model_status, normalize_horizon, predict_for_segment
+from intelligence.what_if_simulator import simulate_traffic_scenario
 
 logger = logging.getLogger(__name__)
 
@@ -67,9 +68,35 @@ class ModelPredictionResponse(BaseModel):
     available_feature_count: int
     filled_feature_count: int
     feature_fill_strategy: Optional[str] = None
-    missing_features: List[str] = []
+    missing_features: List[str] = Field(default_factory=list)
     latest_timestamp: Optional[str] = None
     warning: Optional[str] = None
+    confidence_band: Optional[List[float]] = None
+    reliability_level: Optional[str] = None
+    feature_coverage_ratio: Optional[float] = None
+    data_freshness_seconds: Optional[int] = None
+
+
+class TrafficSimulationRequest(BaseModel):
+    """What-if simulation request."""
+    segment_id: str
+    horizon: str = "15m"
+    rain_1h_mm: Optional[float] = None
+    event_type: Optional[str] = None
+    is_peak_hour: bool = False
+
+
+class TrafficSimulationResponse(BaseModel):
+    """What-if simulation response."""
+    segment_id: str
+    horizon: str
+    baseline_speed: float
+    simulated_speed: float
+    speed_delta: float
+    speed_delta_pct: float
+    baseline_risk: dict[str, Any]
+    simulated_risk: dict[str, Any]
+    applied_scenario: dict[str, Any]
 
 
 # Endpoints
@@ -145,7 +172,58 @@ def get_speed_forecast(
     except DataUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    return ModelPredictionResponse(**prediction.__dict__)
+    payload = prediction.__dict__.copy()
+    if payload.get("confidence_band") is not None:
+        payload["confidence_band"] = list(payload["confidence_band"])
+    return ModelPredictionResponse(**payload)
+
+
+@router.post("/simulate", response_model=TrafficSimulationResponse)
+def simulate_traffic(request: TrafficSimulationRequest):
+    """Run a lightweight what-if simulation for rain/event/peak-hour scenarios."""
+    try:
+        normalize_horizon(request.horizon)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        latest = latest_by_segment(traffic_features())
+    except DataUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    rows = latest[latest["segment_id"].astype(str) == str(request.segment_id)]
+    if rows.empty:
+        raise HTTPException(status_code=404, detail=f"Segment '{request.segment_id}' was not found in local data")
+
+    try:
+        prediction = predict_for_segment(request.segment_id, request.horizon)
+    except ModelUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    scenario = request.model_dump(exclude={"segment_id", "horizon"}, exclude_none=True)
+    scenario["horizon"] = normalize_horizon(request.horizon)
+    result = simulate_traffic_scenario(rows.iloc[-1], prediction, scenario)
+    return TrafficSimulationResponse(
+        segment_id=result.segment_id,
+        horizon=result.horizon,
+        baseline_speed=result.baseline_speed,
+        simulated_speed=result.simulated_speed,
+        speed_delta=result.speed_delta,
+        speed_delta_pct=result.speed_delta_pct,
+        baseline_risk={
+            "risk_score": result.baseline_risk.risk_score,
+            "risk_level": result.baseline_risk.risk_level,
+            "components": result.baseline_risk.components,
+            "triggered_rules": result.baseline_risk.triggered_rules,
+        },
+        simulated_risk={
+            "risk_score": result.simulated_risk.risk_score,
+            "risk_level": result.simulated_risk.risk_level,
+            "components": result.simulated_risk.components,
+            "triggered_rules": result.simulated_risk.triggered_rules,
+        },
+        applied_scenario=result.applied_scenario,
+    )
 
 
 @router.get("/segments", response_model=List[TrafficSegment])

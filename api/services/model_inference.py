@@ -14,20 +14,29 @@ import numpy as np
 import pandas as pd
 
 from api.services.local_data import PROJECT_ROOT, latest_by_segment, traffic_features
+from intelligence.prediction_reliability import assess_prediction_reliability
 
 
-DEFAULT_MODEL_DIR = "results/cta_training_outputs_balanced_v3_latest"
+DEFAULT_MODEL_DIR = "results/cta_model_pack_final_v1_20260613T162016Z"
+LEGACY_MODEL_DIR = "results/cta_training_outputs_balanced_v3_latest"
 MODEL_ARTIFACT_CANDIDATES = {
     "15m": [
+        "models/selected_model_15m_lightgbm.joblib",
         "selected_model_15m_speed_lightgbm_main.joblib",
         "best_model_15m_speed_extra_trees.joblib",
     ],
     "60m": [
+        "models/selected_model_60m_lightgbm.joblib",
         "selected_model_60m_speed_lightgbm_main.joblib",
         "best_model_60m_speed_extra_trees.joblib",
     ],
+    "240m": [
+        "models/selected_model_240m_lightgbm.joblib",
+        "selected_model_240m_speed_lightgbm_main.joblib",
+        "best_model_240m_speed_extra_trees.joblib",
+    ],
 }
-MODEL_TASKS = {"15m": "15m_speed", "60m": "60m_speed"}
+MODEL_TASKS = {"15m": "15m_speed", "60m": "60m_speed", "240m": "240m_speed"}
 NON_FEATURE_COLUMNS = {
     "target",
     "target_speed",
@@ -69,6 +78,10 @@ class ModelPrediction:
     missing_features: list[str]
     latest_timestamp: str | None
     warning: str | None = None
+    confidence_band: tuple[float, float] | None = None
+    reliability_level: str | None = None
+    feature_coverage_ratio: float | None = None
+    data_freshness_seconds: int | None = None
 
 
 def normalize_horizon(horizon: str | int) -> str:
@@ -77,12 +90,30 @@ def normalize_horizon(horizon: str | int) -> str:
         return "15m"
     if text in {"60", "60m", "60min", "60mins"}:
         return "60m"
-    raise ValueError("horizon must be 15m or 60m")
+    if text in {"240", "240m", "240min", "240mins", "4h"}:
+        return "240m"
+    raise ValueError("horizon must be 15m, 60m, or 240m")
+
+
+def with_reliability(prediction: ModelPrediction) -> ModelPrediction:
+    reliability = assess_prediction_reliability(prediction)
+    prediction.confidence_band = reliability.confidence_band
+    prediction.reliability_level = reliability.reliability_level
+    prediction.feature_coverage_ratio = reliability.feature_coverage_ratio
+    prediction.data_freshness_seconds = reliability.data_freshness_seconds
+    return prediction
 
 
 def model_dir() -> Path:
-    configured = Path(os.getenv("CTA_MODEL_DIR", DEFAULT_MODEL_DIR))
-    return configured if configured.is_absolute() else PROJECT_ROOT / configured
+    configured = Path(os.getenv("CTA_MODEL_DIR") or os.getenv("MODEL_DIR") or DEFAULT_MODEL_DIR)
+    root = configured if configured.is_absolute() else PROJECT_ROOT / configured
+    if root.exists():
+        return root
+    if not os.getenv("CTA_MODEL_DIR") and not os.getenv("MODEL_DIR"):
+        legacy = PROJECT_ROOT / LEGACY_MODEL_DIR
+        if legacy.exists():
+            return legacy
+    return root
 
 
 def artifact_name(horizon: str) -> str:
@@ -101,7 +132,7 @@ def _artifact_size(path: Path) -> int:
     return path.stat().st_size if path.exists() else 0
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=3)
 def _load_model_cached(model_dir_str: str, horizon: str) -> Any:
     root = Path(model_dir_str)
     artifact = next((name for name in MODEL_ARTIFACT_CANDIDATES[horizon] if (root / name).exists()), None)
@@ -133,6 +164,30 @@ def model_name_from_artifact(artifact: Any) -> str:
 
 
 def _read_training_summary() -> list[dict[str, Any]]:
+    manifest_path = model_dir() / "metadata" / "model_manifest.json"
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            selected_metrics = manifest.get("selected_metrics", {})
+            selected_models = manifest.get("selected_models", {})
+            rows = []
+            for horizon, metrics in selected_metrics.items():
+                model_info = selected_models.get(horizon, {})
+                rows.append(
+                    {
+                        "task": f"{horizon}_speed",
+                        "selected_model": metrics.get("model", model_info.get("model_name", "")),
+                        "mae": metrics.get("MAE", metrics.get("mae", 0.0)),
+                        "rmse": metrics.get("RMSE", metrics.get("rmse", 0.0)),
+                        "r2": metrics.get("R2", metrics.get("r2", 0.0)),
+                        "rows": metrics.get("n", 0),
+                        "feature_count": model_info.get("feature_count", 0),
+                        "artifact": model_info.get("model_file", ""),
+                    }
+                )
+            return rows
+        except Exception:
+            pass
     path = model_dir() / "training_summary.json"
     if not path.exists():
         path = model_dir() / "report_summary_selected_models.csv"
@@ -165,7 +220,7 @@ def _read_training_summary() -> list[dict[str, Any]]:
             normalized = []
             for item in rows:
                 task = str(item.get("task", ""))
-                horizon = "15m" if "15m" in task else "60m" if "60m" in task else ""
+                horizon = "15m" if "15m" in task else "60m" if "60m" in task else "240m" if "240m" in task else ""
                 artifact_info = artifact_rows.get(horizon, {})
                 manifest_info = manifest_rows.get(horizon, {})
                 normalized.append(
@@ -216,7 +271,12 @@ def _read_inference_examples() -> pd.DataFrame:
 
 def feature_columns_for_model(model: Any, horizon: str) -> list[str]:
     if isinstance(model, dict):
-        names = model.get("feature_cols")
+        names = (
+            model.get("feature_cols")
+            or model.get("feature_columns")
+            or model.get("features")
+            or model.get("expected_input_features")
+        )
         if names is not None:
             return [str(name) for name in list(names) if str(name) not in NON_FEATURE_COLUMNS]
         model = estimator_from_artifact(model)
@@ -224,6 +284,18 @@ def feature_columns_for_model(model: Any, horizon: str) -> list[str]:
     names = getattr(model, "feature_names_in_", None)
     if names is not None:
         return [str(name) for name in list(names) if str(name) not in NON_FEATURE_COLUMNS]
+
+    for schema_path in [model_dir() / "metadata" / "feature_schema_used.json", model_dir() / "metadata" / "model_manifest.json"]:
+        if not schema_path.exists():
+            continue
+        try:
+            payload = json.loads(schema_path.read_text(encoding="utf-8"))
+            schema = payload.get("feature_schema", payload)
+            features = list(schema.get("numeric_features", [])) + list(schema.get("categorical_features", []))
+            if features:
+                return [str(feature) for feature in features if str(feature) not in NON_FEATURE_COLUMNS]
+        except Exception:
+            pass
 
     path = model_dir() / "feature_importance_best_models.csv"
     model_filter = "extra_trees"
@@ -402,7 +474,7 @@ def _fallback_from_examples(segment_id: str, horizon: str, warning: str) -> Mode
     if row.empty:
         raise ModelUnavailableError(warning)
     item = row.iloc[0]
-    return ModelPrediction(
+    return with_reliability(ModelPrediction(
         segment_id=segment_id,
         horizon=horizon,
         predicted_speed=float(item.get("predicted_speed_kph")) if pd.notna(item.get("predicted_speed_kph")) else None,
@@ -421,7 +493,7 @@ def _fallback_from_examples(segment_id: str, horizon: str, warning: str) -> Mode
         missing_features=[],
         latest_timestamp=str(item.get("time_bucket_local")) if pd.notna(item.get("time_bucket_local")) else None,
         warning=warning,
-    )
+    ))
 
 
 def predict_from_features(horizon: str | int, features: dict[str, Any]) -> ModelPrediction:
@@ -434,7 +506,7 @@ def predict_from_features(horizon: str | int, features: dict[str, Any]) -> Model
     for column in missing:
         frame[column] = _default_for_feature(column)
     prediction = float(estimator.predict(frame[feature_columns])[0])
-    return ModelPrediction(
+    return with_reliability(ModelPrediction(
         segment_id=str(features.get("segment_id", "ad_hoc")),
         horizon=normalized,
         predicted_speed=round(prediction, 3),
@@ -452,7 +524,7 @@ def predict_from_features(horizon: str | int, features: dict[str, Any]) -> Model
         feature_fill_strategy="missing_features_filled_with_zero_or_unknown" if missing else None,
         missing_features=missing[:50],
         latest_timestamp=None,
-    )
+    ))
 
 
 def _predict_from_gold_row(
@@ -466,7 +538,7 @@ def _predict_from_gold_row(
     prediction = float(estimator.predict(frame)[0])
     latest_timestamp = row.get("timestamp", row.get("time_bucket"))
     segment_id = str(row.get("segment_id", "unknown"))
-    return ModelPrediction(
+    return with_reliability(ModelPrediction(
         segment_id=segment_id,
         horizon=normalized,
         predicted_speed=round(prediction, 3),
@@ -485,7 +557,7 @@ def _predict_from_gold_row(
         missing_features=missing[:50],
         latest_timestamp=pd.to_datetime(latest_timestamp).isoformat() if pd.notna(latest_timestamp) else None,
         warning="Some required model features were filled for demo inference." if missing else None,
-    )
+    ))
 
 
 def predict_for_feature_row(row: pd.Series, horizon: str | int) -> ModelPrediction:
@@ -535,7 +607,7 @@ def predict_for_feature_rows(rows: pd.DataFrame, horizon: str | int) -> list[Mod
     for row, missing, prediction in zip(source_rows, missing_by_row, predictions):
         latest_timestamp = row.get("timestamp", row.get("time_bucket"))
         output.append(
-            ModelPrediction(
+            with_reliability(ModelPrediction(
                 segment_id=str(row.get("segment_id", "unknown")),
                 horizon=normalized,
                 predicted_speed=round(float(prediction), 3),
@@ -560,7 +632,7 @@ def predict_for_feature_rows(rows: pd.DataFrame, horizon: str | int) -> list[Mod
                 missing_features=missing[:50],
                 latest_timestamp=pd.to_datetime(latest_timestamp).isoformat() if pd.notna(latest_timestamp) else None,
                 warning="Some required model features were filled for demo inference." if missing else None,
-            )
+            ))
         )
     return output
 

@@ -25,7 +25,7 @@ dag = DAG(
 SPARK_SUBMIT = "spark-submit --master spark://spark-master:7077 --deploy-mode client"
 WAREHOUSE = "s3a://lakehouse"
 
-with TaskGroup("import_batch_datasets", tooltip="Import all batch data") as tg_batch:
+with TaskGroup("import_batch_datasets", tooltip="Import all batch data", dag=dag) as tg_batch:
     import_osm = BashOperator(
         task_id="import_osm",
         bash_command=f"""
@@ -71,6 +71,7 @@ with TaskGroup("import_batch_datasets", tooltip="Import all batch data") as tg_b
 notify_completion = BashOperator(
     task_id="notify_completion",
     bash_command="echo 'Batch dataset imports completed'",
+    dag=dag,
 )
 
 tg_batch >> notify_completion

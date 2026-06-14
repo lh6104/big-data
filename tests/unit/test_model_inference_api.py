@@ -19,13 +19,24 @@ def test_model_status_endpoint_does_not_crash(monkeypatch, tmp_path):
     assert payload["ready"] is False
     assert payload["horizons"]["15m"]["exists"] is False
     assert payload["horizons"]["60m"]["exists"] is False
+    assert payload["horizons"]["240m"]["exists"] is False
+
+
+def test_predict_240m_is_valid_but_requires_artifact(monkeypatch, tmp_path):
+    monkeypatch.setenv("CTA_MODEL_DIR", str(tmp_path))
+    _load_model_cached.cache_clear()
+
+    response = client.get("/traffic/predict/HN_001?horizon=240m")
+
+    assert response.status_code == 503
+    assert "selected_model_240m" in response.json()["error"]
 
 
 def test_predict_invalid_horizon_returns_clear_error():
-    response = client.get("/traffic/predict/HN_001?horizon=240m")
+    response = client.get("/traffic/predict/HN_001?horizon=999m")
 
     assert response.status_code == 400
-    assert "15m or 60m" in response.json()["error"]
+    assert "15m, 60m, or 240m" in response.json()["error"]
 
 
 def test_predict_missing_model_returns_503(monkeypatch, tmp_path):
@@ -55,6 +66,10 @@ def test_model_prediction_response_includes_feature_coverage():
         assert payload["model_source"]
         assert "current_speed" in payload
         assert "predicted_speed" in payload
+        assert "confidence_band" in payload
+        assert "reliability_level" in payload
+        assert "feature_coverage_ratio" in payload
+        assert "data_freshness_seconds" in payload
 
 
 def test_predicted_hotspots_endpoint_does_not_crash():
@@ -73,10 +88,35 @@ def test_predicted_hotspots_endpoint_does_not_crash():
 
 
 def test_predicted_hotspots_invalid_horizon_returns_clear_error():
-    response = client.get("/hotspots/predicted?city=hanoi&horizon=240m")
+    response = client.get("/hotspots/predicted?city=hanoi&horizon=999m")
 
     assert response.status_code == 400
-    assert "15m or 60m" in response.json()["error"]
+    assert "15m, 60m, or 240m" in response.json()["error"]
+
+
+def test_model_status_alias_endpoint_reports_240m_readiness():
+    response = client.get("/model/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "240m" in payload["horizons"]
+
+
+def test_graph_and_corridor_cognitive_endpoints_do_not_crash():
+    segment_response = client.get("/traffic/segments?city=hanoi&limit=1")
+    assert segment_response.status_code == 200
+    segments = segment_response.json()
+    if not segments:
+        pytest.skip("local segment data is not available")
+
+    segment_id = segments[0]["segment_id"]
+    graph_response = client.get(f"/graph/propagation/{segment_id}")
+    assert graph_response.status_code == 200
+    assert "propagation_score" in graph_response.json()
+
+    corridor_response = client.get("/corridors/risk?city=hanoi")
+    assert corridor_response.status_code == 200
+    assert "ranked_corridors" in corridor_response.json()
 
 
 def test_system_status_endpoint_reports_demo_state():

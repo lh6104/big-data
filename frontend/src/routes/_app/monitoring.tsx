@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import useSWR from "swr";
-import { Activity, AlertTriangle, CheckCircle2, Database, Gauge, Zap } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Cloud, Database, Gauge, Zap } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PlaceholderPage } from "@/components/dashboard/PlaceholderPage";
 import { apiGet } from "@/lib/api/client";
@@ -98,6 +98,15 @@ type SystemStatus = {
     kafka_enabled: boolean;
     status: string;
     last_demo_at?: string | null;
+  };
+  local_stack?: {
+    status: string;
+    components: Record<string, { status: string; url?: string; endpoint?: string; bootstrap_servers?: string; database?: string }>;
+  };
+  cloud?: {
+    status: string;
+    s3: { status: string; bucket?: string | null; region?: string | null; warehouse?: string | null; verification?: string };
+    neo4j_aura: { status: string; uri?: string | null; database?: string | null; verification?: string };
   };
 };
 
@@ -203,11 +212,13 @@ function MonitoringPage() {
           <SummaryCard icon={Zap} label="Data freshness" value={system?.data.latest_data_timestamp ? formatAge(system.data.latest_data_timestamp) : formatAge(latestTraffic?.last_update)} detail={system?.data.status ?? latestTraffic?.status ?? "unknown"} tone={(system?.data.status ?? latestTraffic?.status) === "ok" || latestTraffic?.status === "healthy" ? "success" : "warning"} loading={loading} />
         </div>
 
-        <div className="col-span-12 grid grid-cols-1 gap-3 md:grid-cols-4">
+        <div className="col-span-12 grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <QualityTile label="Feature coverage" value={formatPercent(system?.model.average_feature_coverage_ratio)} detail={system?.model.feature_coverage_status ?? "not measured"} />
           <QualityTile label="Forecast p95" value={formatMs(system?.performance.forecast_p95_ms)} detail={system?.performance.status ?? "not measured"} />
           <QualityTile label="Hotspots p95" value={formatMs(system?.performance.predicted_hotspots_p95_ms)} detail={system?.performance.last_benchmark_at ? `measured ${formatAge(system.performance.last_benchmark_at)}` : "not measured"} />
           <QualityTile label="Streaming" value={system?.streaming.kafka_enabled ? "Enabled" : "Not enabled"} detail={system?.streaming.status ?? "not available"} />
+          <QualityTile label="Local stack" value={system?.local_stack?.status ?? "unknown"} detail={Object.keys(system?.local_stack?.components ?? {}).join(", ") || "not reported"} />
+          <QualityTile label="Cloud stack" value={system?.cloud?.status ?? "unknown"} detail={`S3 ${system?.cloud?.s3.status ?? "n/a"} · Aura ${system?.cloud?.neo4j_aura.status ?? "n/a"}`} />
         </div>
 
         <div className="col-span-12 rounded-3xl bg-card p-6 lg:col-span-8">
@@ -320,6 +331,28 @@ function MonitoringPage() {
           </div>
           <div className="mt-4 rounded-2xl bg-primary-soft px-4 py-3 text-xs text-accent-foreground">
             Model directory: <span className="font-mono">{model?.model_dir ?? "n/a"}</span>
+          </div>
+        </div>
+
+        <div className="col-span-12 rounded-3xl bg-card p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-semibold">Local & Cloud Stack</h3>
+              <p className="text-xs text-muted-foreground">Configured runtime dependencies from /system/status without exposing secrets</p>
+            </div>
+            <Cloud className="h-4 w-4 text-primary" />
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            {Object.entries(system?.local_stack?.components ?? {}).map(([name, item]) => (
+              <QualityTile
+                key={name}
+                label={name.replaceAll("_", " ")}
+                value={item.status}
+                detail={item.url ?? item.endpoint ?? item.bootstrap_servers ?? item.database ?? "local service"}
+              />
+            ))}
+            <QualityTile label="AWS S3" value={system?.cloud?.s3.status ?? "unknown"} detail={system?.cloud?.s3.bucket ? `${system.cloud.s3.bucket} · ${system.cloud.s3.region}` : "not configured"} />
+            <QualityTile label="Neo4j AuraDB" value={system?.cloud?.neo4j_aura.status ?? "unknown"} detail={system?.cloud?.neo4j_aura.database ?? system?.cloud?.neo4j_aura.uri ?? "not configured"} />
           </div>
         </div>
       </div>

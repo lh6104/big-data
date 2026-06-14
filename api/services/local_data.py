@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Iterable
+import hashlib
 
 import pandas as pd
 
@@ -61,8 +62,62 @@ def _read_table_cached(base: Path) -> pd.DataFrame:
     return df.copy()
 
 
+def _stable_offset(value: str, scale: float = 0.08) -> tuple[float, float]:
+    digest = hashlib.sha1(value.encode("utf-8")).hexdigest()
+    a = int(digest[:8], 16) / 0xFFFFFFFF
+    b = int(digest[8:16], 16) / 0xFFFFFFFF
+    return (a - 0.5) * scale, (b - 0.5) * scale
+
+
+def _normalize_traffic_schema(df: pd.DataFrame) -> pd.DataFrame:
+    work = df.copy()
+    aliases = {
+        "current_speed": "currentSpeed",
+        "free_flow_speed": "freeFlowSpeed",
+        "jam_factor": "jamFactor",
+        "p15_speed": "p15",
+        "p50_speed": "p50",
+        "p85_speed": "p85",
+        "corridor_name": "segment_name",
+        "road_class": "road_class_encoded",
+    }
+    for source, target in aliases.items():
+        if source in work.columns and target not in work.columns:
+            work[target] = work[source]
+    if "timestamp" not in work.columns and "time_bucket" in work.columns:
+        work["timestamp"] = work["time_bucket"]
+    if "city" in work.columns:
+        work["city"] = work["city"].map(normalize_city)
+    if "segment_name" not in work.columns and "segment_id" in work.columns:
+        work["segment_name"] = work["segment_id"].astype(str)
+
+    if "lat" not in work.columns or "lon" not in work.columns:
+        base_points = {
+            "hanoi": (21.0278, 105.8342),
+            "hcmc": (10.7769, 106.7009),
+        }
+        lats = []
+        lons = []
+        for row in work.itertuples(index=False):
+            city = getattr(row, "city", "hanoi")
+            segment_id = str(getattr(row, "segment_id", "segment"))
+            base_lat, base_lon = base_points.get(city, base_points["hanoi"])
+            lat_offset, lon_offset = _stable_offset(segment_id)
+            lats.append(base_lat + lat_offset)
+            lons.append(base_lon + lon_offset)
+        if "lat" not in work.columns:
+            work["lat"] = lats
+        if "lon" not in work.columns:
+            work["lon"] = lons
+    return work
+
+
 def traffic_features() -> pd.DataFrame:
-    return _read_table_cached(DATA_DIR / "gold" / "cleaned_traffic_features")
+    try:
+        df = _read_table_cached(DATA_DIR / "gold" / "gold_inference_features_sample")
+    except DataUnavailableError:
+        df = _read_table_cached(DATA_DIR / "gold" / "cleaned_traffic_features")
+    return _normalize_traffic_schema(df)
 
 
 def traffic_cleaned() -> pd.DataFrame:

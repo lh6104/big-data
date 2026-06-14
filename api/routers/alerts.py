@@ -1,13 +1,15 @@
 """Alert management endpoints."""
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from enum import Enum
 import logging
 
 from api.services.local_data import DataUnavailableError, latest_by_segment, normalize_city, severity_from_jam, traffic_features
+from intelligence.risk_scoring import score_segment_risk
+from intelligence.smart_alert_reasoner import reason_about_alert
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,10 @@ class Alert(BaseModel):
     baseline_p50: float
     created_at: datetime
     acknowledged: bool = False
+    why: List[str] = Field(default_factory=list)
+    recommended_action: Optional[str] = None
+    affected_segments: List[str] = Field(default_factory=list)
+    confidence_level: str = "medium"
 
 
 class AlertUpdate(BaseModel):
@@ -52,6 +58,8 @@ def _alert_from_row(row) -> Alert:
     baseline = float(getattr(row, "p50", getattr(row, "freeFlowSpeed", speed)))
     severity_name = severity_from_jam(jam)
     reason = f"Jam factor {jam:.1f}; speed {speed:.1f} km/h versus baseline {baseline:.1f} km/h"
+    risk = score_segment_risk(row)
+    smart_reason = reason_about_alert(row, severity_name, risk=risk)
     return Alert(
         alert_id=f"alert_{row.city}_{row.segment_id}",
         segment_id=str(row.segment_id),
@@ -62,6 +70,10 @@ def _alert_from_row(row) -> Alert:
         baseline_p50=round(baseline, 2),
         created_at=row.timestamp.to_pydatetime(),
         acknowledged=False,
+        why=smart_reason.why,
+        recommended_action=smart_reason.recommended_action,
+        affected_segments=smart_reason.affected_segments,
+        confidence_level=smart_reason.confidence_level,
     )
 
 

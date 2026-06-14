@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from datetime import datetime
 import uvicorn
 
-from api.routers import alerts, dashboard, explain, hotspots, monitoring, routing, segments, settings, system, traffic
+from api.routers import alerts, corridors, dashboard, explain, graph, hotspots, model, monitoring, routing, segments, settings, system, traffic
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -126,6 +126,24 @@ app.include_router(
     routing.router,
     prefix="/routing",
     tags=["routing"],
+)
+
+app.include_router(
+    graph.router,
+    prefix="/graph",
+    tags=["graph"],
+)
+
+app.include_router(
+    corridors.router,
+    prefix="/corridors",
+    tags=["corridors"],
+)
+
+app.include_router(
+    model.router,
+    prefix="/model",
+    tags=["model"],
 )
 
 app.include_router(

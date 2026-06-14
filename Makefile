@@ -1,4 +1,4 @@
-.PHONY: help up down logs restart clean demo test seed health gold gold-docker train-data news-bronze news-events ingest-raw-once ingest-raw-10m ingest-live-map-coverage repair-env docker-build docker-test docker-api docker-shell docker-pipeline demo-check benchmark-demo streaming-mini-demo
+.PHONY: help up down logs restart clean demo demo-lite demo-full test seed health gold gold-docker train-data news-bronze news-events ingest-raw-once ingest-raw-10m ingest-live-map-coverage repair-env docker-build docker-test docker-api docker-shell docker-pipeline demo-check benchmark-demo streaming-mini-demo check-neo4j
 
 COMPOSE_FILE := docker-compose.yml
 COMPOSE_CMD := docker compose -f $(COMPOSE_FILE)
@@ -37,6 +37,9 @@ help:
 	@echo "  make demo-check   - Run API/frontend smoke checks and write docs/demo_smoke_report.*"
 	@echo "  make benchmark-demo - Benchmark API endpoints and write docs/performance_report.*"
 	@echo "  make streaming-mini-demo - Produce/consume sample Kafka messages when Kafka is running"
+	@echo "  make check-neo4j  - Verify Neo4j AuraDB connectivity from .env"
+	@echo "  make demo-lite    - Build local Gold data and run API smoke checks"
+	@echo "  make demo-full    - Start stack, create topics, build Gold data, and run smoke checks"
 	@echo ""
 	@echo "Development:"
 	@echo "  make install     - Install Python dependencies"
@@ -75,14 +78,28 @@ demo: up seed test
 	@echo "║  ✅ DEMO COMPLETE — Pipeline running end-to-end       ║"
 	@echo "║                                                        ║"
 	@echo "║  🌐 Dashboards:                                        ║"
-	@echo "║     - MinIO:      http://localhost:9001               ║"
+	@echo "║     - MinIO:      http://localhost:9001 (local fallback)║"
 	@echo "║     - Spark App:  http://localhost:4040               ║"
 	@echo "║     - Spark UI:   http://localhost:8082               ║"
 	@echo "║     - Airflow:    http://localhost:8080               ║"
-	@echo "║     - Neo4j:      http://localhost:7474               ║"
+	@echo "║     - Neo4j Aura: run make check-neo4j                ║"
 	@echo "║     - Trino:      http://localhost:8888               ║"
 	@echo "╚════════════════════════════════════════════════════════╝"
 	@echo ""
+
+demo-lite: gold
+	@echo "Waiting for API before smoke checks..."
+	$(COMPOSE_CMD) up -d --build api
+	@sleep 5
+	@$(MAKE) demo-check
+	@echo "✓ demo-lite completed"
+
+demo-full: up create-topics gold
+	@echo "Waiting for API before smoke checks..."
+	$(COMPOSE_CMD) up -d --build api
+	@sleep 5
+	@$(MAKE) demo-check
+	@echo "✓ demo-full completed"
 
 seed:
 	@echo "Seeding demo data..."
@@ -173,6 +190,10 @@ health:
 	@bash scripts/check_stack_health.sh
 	@echo "✓ Stack healthy"
 
+check-neo4j:
+	@echo "Checking Neo4j AuraDB connectivity..."
+	$(PYTHON) scripts/check_neo4j_aura.py --env-file .env
+
 ## Development
 
 install:
@@ -212,17 +233,17 @@ view-logs-%:
 	$(COMPOSE_CMD) logs -f $*
 
 check-kafka:
-	docker exec kafka kafka-topics --list --bootstrap-server localhost:9092
+	$(COMPOSE_CMD) exec kafka kafka-topics --list --bootstrap-server localhost:9092
 
 create-topics:
 	@echo "Creating 6 Kafka topics..."
-	docker exec kafka kafka-topics --create --topic events.news --bootstrap-server localhost:9092 --partitions 2 --replication-factor 1 2>/dev/null || true
-	docker exec kafka kafka-topics --create --topic traffic.realtime.tomtom --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1 2>/dev/null || true
-	docker exec kafka kafka-topics --create --topic weather.current --bootstrap-server localhost:9092 --partitions 2 --replication-factor 1 2>/dev/null || true
-	docker exec kafka kafka-topics --create --topic traffic.alerts --bootstrap-server localhost:9092 --partitions 2 --replication-factor 1 2>/dev/null || true
-	docker exec kafka kafka-topics --create --topic events.news.dlq --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 2>/dev/null || true
-	docker exec kafka kafka-topics --create --topic traffic.realtime.tomtom.dlq --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 2>/dev/null || true
-	docker exec kafka kafka-topics --list --bootstrap-server localhost:9092
+	$(COMPOSE_CMD) exec kafka kafka-topics --create --topic events.news --bootstrap-server localhost:9092 --partitions 2 --replication-factor 1 2>/dev/null || true
+	$(COMPOSE_CMD) exec kafka kafka-topics --create --topic traffic.realtime.tomtom --bootstrap-server localhost:9092 --partitions 3 --replication-factor 1 2>/dev/null || true
+	$(COMPOSE_CMD) exec kafka kafka-topics --create --topic weather.current --bootstrap-server localhost:9092 --partitions 2 --replication-factor 1 2>/dev/null || true
+	$(COMPOSE_CMD) exec kafka kafka-topics --create --topic traffic.alerts --bootstrap-server localhost:9092 --partitions 2 --replication-factor 1 2>/dev/null || true
+	$(COMPOSE_CMD) exec kafka kafka-topics --create --topic events.news.dlq --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 2>/dev/null || true
+	$(COMPOSE_CMD) exec kafka kafka-topics --create --topic traffic.realtime.tomtom.dlq --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 2>/dev/null || true
+	$(COMPOSE_CMD) exec kafka kafka-topics --list --bootstrap-server localhost:9092
 	@echo "✓ 6 topics created"
 
 .DEFAULT_GOAL := help

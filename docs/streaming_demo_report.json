@@ -1,13 +1,43 @@
 {
-  "generated_at": "2026-06-11T20:24:09.398416+00:00",
-  "bootstrap_servers": "localhost:9092",
-  "kafka_enabled": false,
-  "overall_status": "SKIPPED",
+  "generated_at": "2026-06-13T23:25:34.744242+00:00",
+  "bootstrap_servers": "kafka:9092",
+  "kafka_enabled": true,
+  "overall_status": "PASS",
   "steps": [
     {
       "step": "Kafka connection",
-      "status": "SKIPPED",
-      "evidence": "Kafka service not running or unreachable: NoBrokersAvailable"
+      "status": "PASS",
+      "evidence": "connected; existing_topics=8"
+    },
+    {
+      "step": "Topic exists",
+      "status": "PASS",
+      "evidence": "events.news"
+    },
+    {
+      "step": "Topic exists",
+      "status": "PASS",
+      "evidence": "created traffic.raw"
+    },
+    {
+      "step": "Topic exists",
+      "status": "PASS",
+      "evidence": "created weather.raw"
+    },
+    {
+      "step": "Producer sent messages",
+      "status": "PASS",
+      "evidence": "9"
+    },
+    {
+      "step": "Consumer read messages",
+      "status": "PASS",
+      "evidence": "9"
+    },
+    {
+      "step": "Bronze output written",
+      "status": "PASS",
+      "evidence": "path=data/bronze/streaming_mini_demo.jsonl rows=9"
     }
   ]
 }
